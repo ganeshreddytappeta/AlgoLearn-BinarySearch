@@ -43,9 +43,9 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(({
   // Compute stats according to curriculum
   const completedLearn = Math.min(12, progress.completedTheoryChapters?.length || 0);
   const completedLabs = Math.min(2, progress.completedLabs?.length || 0);
-  const completedGames = Math.min(6, progress.completedGameLevels?.length || 0);
-  const totalActivities = 21;
-  const completedActivities = Math.min(21, completedLearn + completedLabs + completedGames + (progress.quizCompleted ? 1 : 0));
+  const completedGames = Math.min(10, progress.completedGameLevels?.length || 0);
+  const totalActivities = 25;
+  const completedActivities = Math.min(25, completedLearn + completedLabs + completedGames + (progress.quizCompleted ? 1 : 0));
   const masteryPercentage = Math.round((completedActivities / totalActivities) * 100);
 
   const navItems: {
@@ -84,7 +84,7 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(({
       label: 'Game',
       icon: Gamepad2,
       badge: {
-        text: `${completedGames}/6`,
+        text: `${completedGames}/10`,
         bg: 'bg-emerald-50 dark:bg-emerald-950/60',
         color: 'text-emerald-600 dark:text-emerald-400',
       },

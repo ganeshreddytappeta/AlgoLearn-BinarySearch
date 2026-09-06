@@ -143,12 +143,12 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   // Dynamic Learning Areas Stats
   const completedLearn = Math.min(12, progress.completedTheoryChapters?.length || 0);
   const completedLabs = Math.min(2, progress.completedLabs?.length || 0);
-  const completedGames = Math.min(6, progress.completedGameLevels?.length || 0);
+  const completedGames = Math.min(10, progress.completedGameLevels?.length || 0);
 
   // Overall Mastery Calculation synchronized with Sidebar and 4 learning areas
-  const totalActivities = 21; // 12 Theory + 2 Videos + 6 Games + 1 Quiz
+  const totalActivities = 25; // 12 Theory + 2 Videos + 10 Games + 1 Quiz
   const completedActivities = Math.min(
-    21,
+    25,
     completedLearn + completedLabs + completedGames + (progress.quizCompleted ? 1 : 0)
   );
   const masteryPercentage = Math.round((completedActivities / totalActivities) * 100);
@@ -210,7 +210,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
         tab: 'lab' as TabType,
       };
     }
-    if (completedGames < 6) {
+    if (completedGames < 10) {
       return {
         title: 'TRY BINARY SEARCH CHALLENGES',
         description: 'Apply your knowledge by solving interactive Binary Search problems.',
@@ -452,7 +452,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">
-              {completedGames} / 6
+              {completedGames} / 10
             </span>
             <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
               Challenges
@@ -461,11 +461,11 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
             <div
               className="h-full bg-emerald-600 dark:bg-emerald-500 transition-all duration-300"
-              style={{ width: `${Math.round((completedGames / 6) * 100)}%` }}
+              style={{ width: `${Math.round((completedGames / 10) * 100)}%` }}
             />
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2 font-medium">
-            {completedGames === 6
+            {completedGames === 10
               ? '✓ Completed'
               : completedGames > 0
               ? '◐ In Progress'

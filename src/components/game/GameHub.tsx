@@ -14,6 +14,7 @@ import {
   Play,
   FlaskConical,
   Lightbulb,
+  Target,
 } from 'lucide-react';
 import { GameMetaData, GAME_CATALOG } from '../../data/gameMeta';
 import { UserProgress } from '../../types';
@@ -40,8 +41,10 @@ export const GameHub: React.FC<GameHubProps> = ({
 }) => {
   const completedLevels = progress.completedGameLevels || [];
 
-  const getGameIcon = (iconName: string) => {
+  const getGameIcon = (iconName?: string) => {
     switch (iconName) {
+      case 'target':
+        return <Target className="w-5 h-5" />;
       case 'pop':
         return <ArrowUpRight className="w-5 h-5" />;
       case 'push':
@@ -55,7 +58,7 @@ export const GameHub: React.FC<GameHubProps> = ({
       case 'speed':
         return <Zap className="w-5 h-5" />;
       default:
-        return <Layers className="w-5 h-5" />;
+        return <Target className="w-5 h-5" />;
     }
   };
 
@@ -89,13 +92,13 @@ export const GameHub: React.FC<GameHubProps> = ({
           GAME
         </h1>
         <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
-          Practice Stack concepts through interactive challenges.
+          Practice Binary Search concepts through 10 interactive challenges.
         </p>
       </div>
 
-      {/* ─── 2. EXACTLY 6 GAME CARDS (2x3 Grid on Desktop/Tablet, 1-Col on Mobile) ─── */}
+      {/* ─── 2. ALL 10 GAME CARDS (2-Col on Desktop/Tablet, 1-Col on Mobile) ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-        {GAME_CATALOG.slice(0, 6).map((game) => {
+        {GAME_CATALOG.map((game) => {
           const isCompleted = completedLevels.includes(game.id);
           const isInProgress = !isCompleted && game.id === activeLevelId && currentChallengeIndex > 0;
           const formattedNumber = game.levelNumber < 10 ? `0${game.levelNumber}` : `${game.levelNumber}`;
@@ -154,19 +157,6 @@ export const GameHub: React.FC<GameHubProps> = ({
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-3">
                   {game.description}
                 </p>
-
-                {/* Example sequence inside Card 04 (Predict the Stack) */}
-                {game.id === 4 && (
-                  <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono text-xs text-blue-600 dark:text-blue-400 space-y-1">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 font-sans mb-1">
-                      Example Sequence:
-                    </div>
-                    <div>Push(10)</div>
-                    <div>Push(20)</div>
-                    <div>Pop()</div>
-                    <div>Push(30)</div>
-                  </div>
-                )}
               </div>
 
               {/* Card Footer: Metadata & Primary Action Button */}

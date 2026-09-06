@@ -10,6 +10,7 @@ interface BinarySearchBoardProps {
   mid: number;
   isFound: boolean;
   isNotFound: boolean;
+  highlightConcept?: 'range' | 'mid' | 'compare' | 'low' | 'high' | null;
 }
 
 export const BinarySearchBoard: React.FC<BinarySearchBoardProps> = ({
@@ -20,6 +21,7 @@ export const BinarySearchBoard: React.FC<BinarySearchBoardProps> = ({
   mid,
   isFound,
   isNotFound,
+  highlightConcept,
 }) => {
   const activeCandidatesCount = Math.max(0, high - low + 1);
 
@@ -27,7 +29,13 @@ export const BinarySearchBoard: React.FC<BinarySearchBoardProps> = ({
     <div className="w-full space-y-4">
       {/* Pointer Stats HUD */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+        <div
+          className={`p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border transition-all shadow-2xs ${
+            highlightConcept === 'compare'
+              ? 'border-blue-500 ring-2 ring-blue-400/80 dark:ring-blue-500/80'
+              : 'border-slate-200 dark:border-slate-700/80'
+          }`}
+        >
           <span className="text-[10px] uppercase font-mono font-bold text-slate-400 tracking-wider block">
             Target
           </span>
@@ -37,7 +45,13 @@ export const BinarySearchBoard: React.FC<BinarySearchBoardProps> = ({
           </span>
         </div>
 
-        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+        <div
+          className={`p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border transition-all shadow-2xs ${
+            highlightConcept === 'low'
+              ? 'border-amber-500 ring-2 ring-amber-400/80 dark:ring-amber-500/80'
+              : 'border-slate-200 dark:border-slate-700/80'
+          }`}
+        >
           <span className="text-[10px] uppercase font-mono font-bold text-slate-400 tracking-wider block">
             Low Pointer
           </span>
@@ -46,7 +60,13 @@ export const BinarySearchBoard: React.FC<BinarySearchBoardProps> = ({
           </span>
         </div>
 
-        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-indigo-200 dark:border-indigo-800/80 shadow-2xs">
+        <div
+          className={`p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border transition-all shadow-2xs ${
+            highlightConcept === 'mid' || highlightConcept === 'compare'
+              ? 'border-indigo-500 ring-2 ring-indigo-400/80 dark:ring-indigo-500/80'
+              : 'border-indigo-200 dark:border-indigo-800/80'
+          }`}
+        >
           <span className="text-[10px] uppercase font-mono font-bold text-indigo-500 dark:text-indigo-400 tracking-wider block">
             Mid Pointer
           </span>
@@ -61,7 +81,13 @@ export const BinarySearchBoard: React.FC<BinarySearchBoardProps> = ({
           </span>
         </div>
 
-        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+        <div
+          className={`p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border transition-all shadow-2xs ${
+            highlightConcept === 'high'
+              ? 'border-purple-500 ring-2 ring-purple-400/80 dark:ring-purple-500/80'
+              : 'border-slate-200 dark:border-slate-700/80'
+          }`}
+        >
           <span className="text-[10px] uppercase font-mono font-bold text-slate-400 tracking-wider block">
             High Pointer
           </span>
@@ -114,10 +140,23 @@ export const BinarySearchBoard: React.FC<BinarySearchBoardProps> = ({
                   'bg-emerald-600 text-white font-black border-emerald-400 shadow-lg shadow-emerald-500/40 scale-110 ring-2 ring-emerald-300';
               } else if (isMid) {
                 cellStyle =
-                  'bg-indigo-600 text-white font-extrabold border-indigo-400 shadow-md shadow-indigo-500/30 scale-105 ring-2 ring-indigo-400/50';
+                  highlightConcept === 'mid' || highlightConcept === 'compare'
+                    ? 'bg-indigo-600 text-white font-extrabold border-indigo-300 shadow-lg shadow-indigo-500/40 scale-110 ring-4 ring-indigo-400 animate-pulse'
+                    : 'bg-indigo-600 text-white font-extrabold border-indigo-400 shadow-md shadow-indigo-500/30 scale-105 ring-2 ring-indigo-400/50';
               } else if (inRange) {
-                cellStyle =
-                  'bg-slate-800 text-white font-bold border-blue-500/60 shadow-xs hover:border-blue-400';
+                if (highlightConcept === 'range') {
+                  cellStyle =
+                    'bg-slate-800 text-white font-bold border-blue-400 shadow-md ring-2 ring-blue-400/80';
+                } else if (highlightConcept === 'low' && idx === low) {
+                  cellStyle =
+                    'bg-slate-800 text-white font-bold border-amber-400 shadow-md ring-2 ring-amber-400';
+                } else if (highlightConcept === 'high' && idx === high) {
+                  cellStyle =
+                    'bg-slate-800 text-white font-bold border-purple-400 shadow-md ring-2 ring-purple-400';
+                } else {
+                  cellStyle =
+                    'bg-slate-800 text-white font-bold border-blue-500/60 shadow-xs hover:border-blue-400';
+                }
               }
 
               return (

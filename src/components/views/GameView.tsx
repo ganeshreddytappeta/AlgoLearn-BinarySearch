@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Sparkles,
@@ -15,6 +15,12 @@ import { GAME_LEVELS, BinarySearchLevelConfig, BinarySearchChallenge } from '../
 import { GAME_CATALOG } from '../../data/gameMeta';
 import { soundEffects } from '../../services/sound';
 import { awardXP } from '../../services/storage';
+import {
+  GuidedSubStage,
+  getGuidedStepDetails,
+  calculateTotalGuideStages,
+  getExpectedAction,
+} from '../../services/guidedSolveEngine';
 
 // Modular Game Components
 import { BinarySearchBoard } from '../game/BinarySearchBoard';
@@ -99,8 +105,45 @@ export const GameView: React.FC<GameViewProps> = ({
   // Hints State: 3 progressive stages (0 = closed, 1 = concept, 2 = direction, 3 = exact)
   const [hintStage, setHintStage] = useState<number>(0);
 
-  // Guided Solve Panel State
+  // Guided Solve Tutor State
   const [isGuidedSolveOpen, setIsGuidedSolveOpen] = useState<boolean>(false);
+  const [guidedSubStage, setGuidedSubStage] = useState<GuidedSubStage>('EXPLAIN_RANGE');
+  const [guidedStepNumber, setGuidedStepNumber] = useState<number>(1);
+  const [guidedTotalSteps, setGuidedTotalSteps] = useState<number>(4);
+  const [guidedWrongAttempt, setGuidedWrongAttempt] = useState<{
+    action: string;
+    message: string;
+  } | null>(null);
+  const [guidedLastSuccess, setGuidedLastSuccess] = useState<{
+    pointerUpdated: 'LOW' | 'HIGH';
+    oldValue: number;
+    newValue: number;
+    formula: string;
+    explanation: string;
+  } | null>(null);
+
+  // Dynamic details of the current guided step
+  const guidedStepDetails = useMemo(() => {
+    return getGuidedStepDetails(
+      currentChallenge,
+      low,
+      high,
+      mid,
+      guidedSubStage,
+      guidedStepNumber,
+      guidedTotalSteps,
+      guidedLastSuccess
+    );
+  }, [
+    currentChallenge,
+    low,
+    high,
+    mid,
+    guidedSubStage,
+    guidedStepNumber,
+    guidedTotalSteps,
+    guidedLastSuccess,
+  ]);
 
   // How to Play Helper Toggle
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
@@ -127,6 +170,10 @@ export const GameView: React.FC<GameViewProps> = ({
       setFeedback(null);
       setHintStage(0);
       setIsGuidedSolveOpen(false);
+      setGuidedSubStage('EXPLAIN_RANGE');
+      setGuidedStepNumber(1);
+      setGuidedWrongAttempt(null);
+      setGuidedLastSuccess(null);
     },
     []
   );
@@ -180,6 +227,13 @@ export const GameView: React.FC<GameViewProps> = ({
     setStepsTaken(previous.stepsTaken);
     setFeedback(previous.feedback);
     setHistory((prev) => prev.slice(0, -1));
+
+    if (isGuidedSolveOpen) {
+      setGuidedWrongAttempt(null);
+      setGuidedLastSuccess(null);
+      setGuidedSubStage('EXPLAIN_RANGE');
+      setGuidedStepNumber((prev) => Math.max(1, prev - 1));
+    }
   };
 
   // Save State Snapshot before moving
@@ -231,6 +285,54 @@ export const GameView: React.FC<GameViewProps> = ({
     setIsLevelModalOpen(true);
   };
 
+  // Guided Solve Toggle
+  const handleToggleGuidedSolve = () => {
+    soundEffects.playClick();
+    if (isGuidedSolveOpen) {
+      setIsGuidedSolveOpen(false);
+      return;
+    }
+
+    // Temporarily dismiss hints per spec
+    setHintStage(0);
+    setGuidedWrongAttempt(null);
+    setGuidedLastSuccess(null);
+
+    const total = calculateTotalGuideStages(currentChallenge, low, high);
+    setGuidedTotalSteps(total);
+
+    const midVal =
+      mid >= 0 && mid < currentChallenge.array.length
+        ? currentChallenge.array[mid]
+        : null;
+    const isOutOfRange = low > high;
+
+    if (isOutOfRange) {
+      setGuidedSubStage('COMPARE');
+      setGuidedStepNumber(total);
+    } else if (
+      midVal === currentChallenge.target &&
+      !(
+        currentChallenge.mode === 'first-occurrence' &&
+        mid > 0 &&
+        currentChallenge.array[mid - 1] === currentChallenge.target
+      ) &&
+      !(
+        currentChallenge.mode === 'last-occurrence' &&
+        mid < currentChallenge.array.length - 1 &&
+        currentChallenge.array[mid + 1] === currentChallenge.target
+      )
+    ) {
+      setGuidedSubStage('COMPARE');
+      setGuidedStepNumber(Math.max(1, total - 1));
+    } else {
+      setGuidedSubStage('EXPLAIN_RANGE');
+      setGuidedStepNumber(1);
+    }
+
+    setIsGuidedSolveOpen(true);
+  };
+
   // Player Action: Search Left Half
   const handleSearchLeft = () => {
     if (isSolved) return;
@@ -246,6 +348,42 @@ export const GameView: React.FC<GameViewProps> = ({
         reason: 'Pointers have crossed. The target is not in the array. Select "TARGET NOT FOUND".',
       });
       return;
+    }
+
+    // Guided Solve Validation
+    if (isGuidedSolveOpen) {
+      const expected = getExpectedAction(currentChallenge, low, high, mid);
+      if (expected !== 'LEFT') {
+        soundEffects.playError();
+        setMistakes((prev) => prev + 1);
+        setStreak(0);
+
+        let errorMsg = `The target (${currentChallenge.target}) is greater than arr[${mid}] (${currentChallenge.array[mid]}). Because the array is sorted, the target cannot be in the left half. You must search the RIGHT half.`;
+        if (expected === 'FOUND') {
+          errorMsg = `arr[${mid}] matches target ${currentChallenge.target}! Choose "TARGET FOUND" instead of searching left.`;
+        } else if (expected === 'NOT_FOUND') {
+          errorMsg = `Search window is empty (low: ${low} > high: ${high}). Choose "TARGET NOT FOUND".`;
+        }
+        setGuidedWrongAttempt({ action: 'LEFT', message: errorMsg });
+        return;
+      }
+
+      setGuidedWrongAttempt(null);
+      const nextHigh = mid - 1;
+      if (currentChallenge.targetAction === 'LEFT') {
+        setGuidedSubStage('TARGET_FOUND');
+        setGuidedStepNumber(guidedTotalSteps);
+      } else {
+        setGuidedLastSuccess({
+          pointerUpdated: 'HIGH',
+          oldValue: high,
+          newValue: nextHigh,
+          formula: 'high = mid - 1',
+          explanation: `Target (${currentChallenge.target}) < arr[${mid}] (${currentChallenge.array[mid]}): All elements at and to the right of index [${mid}] are eliminated. HIGH pointer updated to [${nextHigh}].`,
+        });
+        setGuidedSubStage('ACTION_RESULT');
+        setGuidedStepNumber((prev) => Math.min(guidedTotalSteps, prev + 1));
+      }
     }
 
     // Check if challenge is an explicit direction decision question expecting 'LEFT'
@@ -373,6 +511,42 @@ export const GameView: React.FC<GameViewProps> = ({
       return;
     }
 
+    // Guided Solve Validation
+    if (isGuidedSolveOpen) {
+      const expected = getExpectedAction(currentChallenge, low, high, mid);
+      if (expected !== 'RIGHT') {
+        soundEffects.playError();
+        setMistakes((prev) => prev + 1);
+        setStreak(0);
+
+        let errorMsg = `The target (${currentChallenge.target}) is less than arr[${mid}] (${currentChallenge.array[mid]}). Because the array is sorted, the target cannot be in the right half. You must search the LEFT half.`;
+        if (expected === 'FOUND') {
+          errorMsg = `arr[${mid}] matches target ${currentChallenge.target}! Choose "TARGET FOUND" instead of searching right.`;
+        } else if (expected === 'NOT_FOUND') {
+          errorMsg = `Search window is empty (low: ${low} > high: ${high}). Choose "TARGET NOT FOUND".`;
+        }
+        setGuidedWrongAttempt({ action: 'RIGHT', message: errorMsg });
+        return;
+      }
+
+      setGuidedWrongAttempt(null);
+      const nextLow = mid + 1;
+      if (currentChallenge.targetAction === 'RIGHT') {
+        setGuidedSubStage('TARGET_FOUND');
+        setGuidedStepNumber(guidedTotalSteps);
+      } else {
+        setGuidedLastSuccess({
+          pointerUpdated: 'LOW',
+          oldValue: low,
+          newValue: nextLow,
+          formula: 'low = mid + 1',
+          explanation: `Target (${currentChallenge.target}) > arr[${mid}] (${currentChallenge.array[mid]}): All elements at and to the left of index [${mid}] are eliminated. LOW pointer updated to [${nextLow}].`,
+        });
+        setGuidedSubStage('ACTION_RESULT');
+        setGuidedStepNumber((prev) => Math.min(guidedTotalSteps, prev + 1));
+      }
+    }
+
     // Check if challenge is an explicit direction decision question expecting 'RIGHT'
     if (currentChallenge.targetAction === 'RIGHT') {
       soundEffects.playSuccess();
@@ -485,6 +659,41 @@ export const GameView: React.FC<GameViewProps> = ({
   const handleTargetFound = () => {
     if (isSolved) return;
 
+    // Guided Solve Validation
+    if (isGuidedSolveOpen) {
+      const expected = getExpectedAction(currentChallenge, low, high, mid);
+      if (expected !== 'FOUND') {
+        soundEffects.playError();
+        setMistakes((prev) => prev + 1);
+        setStreak(0);
+
+        let errorMsg = `arr[${mid}] is ${currentChallenge.array[mid]}, which does not match target ${currentChallenge.target}. Compare values and choose which half to search.`;
+        if (low > high) {
+          errorMsg = `Search range is empty (low: ${low} > high: ${high}). Choose "TARGET NOT FOUND".`;
+        } else if (
+          currentChallenge.mode === 'first-occurrence' &&
+          currentChallenge.array[mid] === currentChallenge.target &&
+          mid > 0 &&
+          currentChallenge.array[mid - 1] === currentChallenge.target
+        ) {
+          errorMsg = `arr[${mid}] is ${currentChallenge.target}, but arr[${mid - 1}] is ALSO ${currentChallenge.target}! To find the FIRST occurrence, search the LEFT half.`;
+        } else if (
+          currentChallenge.mode === 'last-occurrence' &&
+          currentChallenge.array[mid] === currentChallenge.target &&
+          mid < currentChallenge.array.length - 1 &&
+          currentChallenge.array[mid + 1] === currentChallenge.target
+        ) {
+          errorMsg = `arr[${mid}] is ${currentChallenge.target}, but arr[${mid + 1}] is ALSO ${currentChallenge.target}! To find the LAST occurrence, search the RIGHT half.`;
+        }
+        setGuidedWrongAttempt({ action: 'FOUND', message: errorMsg });
+        return;
+      }
+
+      setGuidedWrongAttempt(null);
+      setGuidedSubStage('TARGET_FOUND');
+      setGuidedStepNumber(guidedTotalSteps);
+    }
+
     if (low > high) {
       soundEffects.playError();
       setMistakes((prev) => prev + 1);
@@ -578,6 +787,24 @@ export const GameView: React.FC<GameViewProps> = ({
   const handleTargetNotFound = () => {
     if (isSolved) return;
 
+    // Guided Solve Validation
+    if (isGuidedSolveOpen) {
+      const expected = getExpectedAction(currentChallenge, low, high, mid);
+      if (expected !== 'NOT_FOUND') {
+        soundEffects.playError();
+        setMistakes((prev) => prev + 1);
+        setStreak(0);
+
+        const errorMsg = `Active search range [${low} .. ${high}] still contains candidates! Continue searching before declaring target not found.`;
+        setGuidedWrongAttempt({ action: 'NOT_FOUND', message: errorMsg });
+        return;
+      }
+
+      setGuidedWrongAttempt(null);
+      setGuidedSubStage('TARGET_NOT_FOUND');
+      setGuidedStepNumber(guidedTotalSteps);
+    }
+
     if (low <= high) {
       soundEffects.playError();
       setMistakes((prev) => prev + 1);
@@ -626,6 +853,77 @@ export const GameView: React.FC<GameViewProps> = ({
       }
     } else {
       triggerLevelCompletion();
+    }
+  };
+
+  // Guided Solve Next Step: Explains and executes step by step
+  const handleGuidedNextStep = () => {
+    soundEffects.playClick();
+    setGuidedWrongAttempt(null);
+
+    // If challenge is solved, Next Step advances to the next challenge!
+    if (isSolved) {
+      if (currentChallengeIndex < challenges.length - 1) {
+        handleNextChallenge();
+      } else {
+        setIsGuidedSolveOpen(false);
+      }
+      return;
+    }
+
+    if (guidedSubStage === 'EXPLAIN_RANGE') {
+      setGuidedSubStage('CALCULATE_MID');
+      setGuidedStepNumber((prev) => Math.min(guidedTotalSteps, prev + 1));
+    } else if (guidedSubStage === 'CALCULATE_MID') {
+      setGuidedSubStage('COMPARE');
+      setGuidedStepNumber((prev) => Math.min(guidedTotalSteps, prev + 1));
+    } else if (guidedSubStage === 'COMPARE') {
+      // EXECUTE the expected binary search action step by step!
+      const expected = getExpectedAction(currentChallenge, low, high, mid);
+      if (expected === 'LEFT') {
+        handleSearchLeft();
+      } else if (expected === 'RIGHT') {
+        handleSearchRight();
+      } else if (expected === 'FOUND') {
+        handleTargetFound();
+      } else if (expected === 'NOT_FOUND') {
+        handleTargetNotFound();
+      }
+    } else if (guidedSubStage === 'ACTION_RESULT') {
+      const isOutOfRange = low > high;
+      const midVal =
+        mid >= 0 && mid < currentChallenge.array.length
+          ? currentChallenge.array[mid]
+          : null;
+
+      if (isOutOfRange) {
+        setGuidedSubStage('COMPARE');
+        setGuidedStepNumber(guidedTotalSteps);
+      } else if (
+        midVal === currentChallenge.target &&
+        !(
+          currentChallenge.mode === 'first-occurrence' &&
+          mid > 0 &&
+          currentChallenge.array[mid - 1] === currentChallenge.target
+        ) &&
+        !(
+          currentChallenge.mode === 'last-occurrence' &&
+          mid < currentChallenge.array.length - 1 &&
+          currentChallenge.array[mid + 1] === currentChallenge.target
+        )
+      ) {
+        setGuidedSubStage('COMPARE');
+        setGuidedStepNumber(Math.min(guidedTotalSteps, guidedStepNumber + 1));
+      } else {
+        setGuidedSubStage('EXPLAIN_RANGE');
+        setGuidedStepNumber((prev) => Math.min(guidedTotalSteps, prev + 1));
+      }
+    } else if (guidedSubStage === 'TARGET_FOUND' || guidedSubStage === 'TARGET_NOT_FOUND') {
+      if (currentChallengeIndex < challenges.length - 1) {
+        handleNextChallenge();
+      } else {
+        setIsGuidedSolveOpen(false);
+      }
     }
   };
 
@@ -800,10 +1098,7 @@ export const GameView: React.FC<GameViewProps> = ({
 
                 {/* Guided Solve: Explicit Orange-Yellow Mixed Gradient */}
                 <button
-                  onClick={() => {
-                    soundEffects.playClick();
-                    setIsGuidedSolveOpen(!isGuidedSolveOpen);
-                  }}
+                  onClick={handleToggleGuidedSolve}
                   className="px-3.5 py-2 rounded-xl font-mono text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 text-white shadow-md shadow-orange-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer border border-amber-400/50"
                 >
                   <Compass className="w-3.5 h-3.5" />
@@ -821,15 +1116,20 @@ export const GameView: React.FC<GameViewProps> = ({
               </div>
             </div>
 
-            {/* Guided Solve Panel (when open) */}
+            {/* Guided Solve Interactive Tutor Panel (when open) */}
             {isGuidedSolveOpen && (
               <BinarySearchGuidedSolve
-                low={low}
-                high={high}
-                mid={mid}
-                array={currentChallenge.array}
-                target={currentChallenge.target}
-                onClose={() => setIsGuidedSolveOpen(false)}
+                stepDetails={guidedStepDetails}
+                wrongAttempt={guidedWrongAttempt}
+                onNextStep={handleGuidedNextStep}
+                onExitGuide={() => setIsGuidedSolveOpen(false)}
+                onSearchLeft={handleSearchLeft}
+                onSearchRight={handleSearchRight}
+                onTargetFound={handleTargetFound}
+                onTargetNotFound={handleTargetNotFound}
+                onNextChallenge={handleNextChallenge}
+                isSolved={isSolved}
+                isLastChallenge={currentChallengeIndex === challenges.length - 1}
               />
             )}
 
@@ -930,6 +1230,7 @@ export const GameView: React.FC<GameViewProps> = ({
               mid={mid}
               isFound={isFound}
               isNotFound={isNotFound}
+              highlightConcept={isGuidedSolveOpen ? guidedStepDetails.highlightConcept : null}
             />
 
             {/* Player Actions & Bottom Controls */}
@@ -944,6 +1245,8 @@ export const GameView: React.FC<GameViewProps> = ({
               canUndo={history.length > 0}
               isSolved={isSolved}
               isLastChallenge={currentChallengeIndex === challenges.length - 1}
+              guidedActive={isGuidedSolveOpen}
+              isYourTurn={isGuidedSolveOpen && guidedStepDetails.isWaitingForPlayer}
             />
 
             {/* Immediate Feedback Card */}

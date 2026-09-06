@@ -20,6 +20,8 @@ interface BinarySearchActionControlsProps {
   canUndo: boolean;
   isSolved: boolean;
   isLastChallenge: boolean;
+  guidedActive?: boolean;
+  isYourTurn?: boolean;
 }
 
 export const BinarySearchActionControls: React.FC<BinarySearchActionControlsProps> = ({
@@ -33,9 +35,27 @@ export const BinarySearchActionControls: React.FC<BinarySearchActionControlsProp
   canUndo,
   isSolved,
   isLastChallenge,
+  guidedActive,
+  isYourTurn,
 }) => {
   return (
     <div className="space-y-4 pt-1">
+      {/* Guided Solve Your Turn Indicator */}
+      {guidedActive && isYourTurn && !isSolved && (
+        <div className="flex items-center justify-between px-3.5 py-1.5 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-800 text-xs font-mono">
+          <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 font-bold">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+            </span>
+            <span className="uppercase tracking-wider">Guided Solve: YOUR TURN</span>
+          </div>
+          <span className="text-[11px] text-orange-600/90 dark:text-orange-400/90">
+            Select the action required by the algorithm
+          </span>
+        </div>
+      )}
+
       {/* Primary Decision Action Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Search Left */}
