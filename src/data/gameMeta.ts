@@ -1,3 +1,17 @@
+export type GameDifficulty =
+  | 'MEDIUM'
+  | 'MEDIUM-HARD'
+  | 'HARD'
+  | 'DIFFICULT'
+  | 'Medium'
+  | 'Medium-Hard'
+  | 'Hard'
+  | 'Difficult'
+  | 'Beginner'
+  | 'Intermediate'
+  | 'Advanced'
+  | 'Expert';
+
 export interface GameMetaData {
   id: number;
   levelNumber: number;
@@ -7,7 +21,7 @@ export interface GameMetaData {
   tagline: string;
   description: string;
   detailedObjective: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
+  difficulty: GameDifficulty;
   duration: string;
   xpReward: number;
   skills: string[];
@@ -30,271 +44,164 @@ export interface GameMetaData {
 
 export const GAME_CATALOG: GameMetaData[] = [
   // =========================================================================
-  // LEVEL 01: BINARY SEARCH BASICS (FIND THE MIDDLE)
+  // LEVEL 01: MIDPOINT & BOUNDARIES
   // =========================================================================
   {
     id: 1,
     levelNumber: 1,
-    title: 'FIND THE MIDDLE',
-    shortTitle: 'Find the Middle',
-    subtitle: 'Binary Search Basics',
-    tagline: 'Identify the middle element in a sorted array.',
-    description: 'Identify the middle element of a sorted array.',
-    detailedObjective: 'Understand where Binary Search starts by computing the middle index and inspecting arr[mid].',
-    difficulty: 'Beginner',
+    title: 'MIDPOINT & BOUNDARIES',
+    shortTitle: 'Midpoint & Boundaries',
+    subtitle: 'Search Range Definition',
+    tagline: 'Learn how LOW, HIGH, and MID define the search range and calculate mid.',
+    description: 'Identify LOW, HIGH, calculate MID with standard and overflow-safe formulas, and use the midpoint correctly.',
+    detailedObjective: 'Understand how LOW, HIGH, and MID define the current search range. Master both midpoint formulas: mid = (low + high) / 2 and mid = low + (high - low) / 2 with integer floor division.',
+    difficulty: 'MEDIUM',
     duration: '2 min',
     xpReward: 100,
-    skills: ['Binary Search Basics', 'Midpoint Calculation', 'Zero-Indexed Arrays'],
-    interactionType: 'Inspect middle element and verify match',
+    skills: ['Boundary Pointers', 'Midpoint Calculation', 'Overflow-Safe Formula', 'Search Window Invariants'],
+    interactionType: 'Identify LOW, HIGH, and verify the correct MID',
     hintAvailability: '3-stage progressive hints',
     iconName: 'target',
     howToPlay: [
-      { stepNumber: 1, title: 'Observe Array', description: 'low = 0, high = 6 in [5, 12, 18, 23, 31, 39, 45].' },
-      { stepNumber: 2, title: 'Calculate Mid', description: 'mid = Math.floor((0 + 6) / 2) = 3.' },
-      { stepNumber: 3, title: 'Check Value', description: 'arr[3] is 23, which matches the target.' },
+      { stepNumber: 1, title: 'Observe Range', description: 'LOW and HIGH define the active range (e.g. low = 0, high = 6).' },
+      { stepNumber: 2, title: 'Calculate Mid', description: 'mid = Math.floor((low + high) / 2) or low + Math.floor((high - low) / 2).' },
+      { stepNumber: 3, title: 'Confirm Midpoint', description: 'Inspect arr[mid] and confirm the midpoint element.' },
     ],
     previewData: { array: [5, 12, 18, 23, 31, 39, 45], target: 23, low: 0, mid: 3, high: 6 },
   },
 
   // =========================================================================
-  // LEVEL 02: LEFT OR RIGHT (CHOOSE THE HALF)
+  // LEVEL 02: CHOOSE THE CORRECT HALF
   // =========================================================================
   {
     id: 2,
     levelNumber: 2,
-    title: 'CHOOSE THE HALF',
-    shortTitle: 'Choose the Half',
-    subtitle: 'Left or Right Decision',
-    tagline: 'Compare TARGET with MID and choose the correct half.',
-    description: 'Compare TARGET with MID and choose the correct half.',
-    detailedObjective: 'Understand the rule: target > mid → RIGHT HALF, target < mid → LEFT HALF.',
-    difficulty: 'Beginner',
+    title: 'CHOOSE THE CORRECT HALF',
+    shortTitle: 'Choose the Correct Half',
+    subtitle: 'Core Binary Search Decision Rule',
+    tagline: 'Compare TARGET with arr[mid] and eliminate half of the search space.',
+    description: 'Apply the core decision rule: TARGET < arr[mid] → left half, TARGET > arr[mid] → right half, TARGET == arr[mid] → FOUND.',
+    detailedObjective: 'Master the fundamental Binary Search decision-making rule. Actively choose the correct half, update LOW or HIGH, and recalculate the new MID.',
+    difficulty: 'MEDIUM',
     duration: '2 min',
-    xpReward: 100,
-    skills: ['Value Comparison', 'Direction Decision', 'Half Elimination'],
-    interactionType: 'Directional selection',
+    xpReward: 120,
+    skills: ['Target Comparison', 'Direction Decision', 'Half Elimination', 'Pointer Updates'],
+    interactionType: 'Active directional choice (Search Left Half vs Search Right Half)',
     hintAvailability: '3-stage progressive hints',
     iconName: 'predict',
     howToPlay: [
-      { stepNumber: 1, title: 'Find Mid', description: 'Current mid = 3, value is arr[3] = 23.' },
-      { stepNumber: 2, title: 'Compare Target', description: 'Target 39 > 23.' },
-      { stepNumber: 3, title: 'Select Half', description: 'Since 39 > 23, search the RIGHT HALF.' },
+      { stepNumber: 1, title: 'Compare Target', description: 'Inspect arr[mid] and compare it directly with TARGET.' },
+      { stepNumber: 2, title: 'Choose Half', description: 'TARGET < arr[mid] → Search Left. TARGET > arr[mid] → Search Right.' },
+      { stepNumber: 3, title: 'Observe Update', description: 'Watch boundaries shift and the next midpoint recalculate.' },
     ],
-    previewData: { array: [5, 12, 18, 23, 31, 39, 45], target: 39, low: 0, mid: 3, high: 6 },
+    previewData: { array: [6, 14, 22, 35, 47, 59, 73], target: 59, low: 0, mid: 3, high: 6 },
   },
 
   // =========================================================================
-  // LEVEL 03: LOW, MID & HIGH (MOVE THE BOUNDARIES)
+  // LEVEL 03: COMPLETE THE SEARCH
   // =========================================================================
   {
     id: 3,
     levelNumber: 3,
-    title: 'MOVE THE BOUNDARIES',
-    shortTitle: 'Move the Boundaries',
-    subtitle: 'Boundary Pointer Updates',
-    tagline: 'Update LOW or HIGH after comparing target with MID.',
-    description: 'Update LOW or HIGH after comparing the target with MID.',
-    detailedObjective: 'Understand how setting high = mid - 1 or low = mid + 1 eliminates half the range.',
-    difficulty: 'Beginner',
-    duration: '2 min',
-    xpReward: 120,
-    skills: ['Boundary Updates', 'Pointer Mechanics', 'Search Range Reduction'],
-    interactionType: 'Pointer boundary adjustment',
+    title: 'COMPLETE THE SEARCH',
+    shortTitle: 'Complete the Search',
+    subtitle: 'End-to-End Search Execution',
+    tagline: 'Perform the complete Binary Search sequence from start to finish.',
+    description: 'Execute the full cycle across multiple iterations: calculate MID → compare → choose half → update range → repeat until FOUND.',
+    detailedObjective: 'Perform the complete Binary Search process while maintaining the correct state across multiple iterations until the target is found.',
+    difficulty: 'MEDIUM-HARD',
+    duration: '3 min',
+    xpReward: 150,
+    skills: ['Full Execution', 'Iterative Loop', 'State Tracking', 'Logarithmic Convergence'],
+    interactionType: 'Multi-iteration interactive search to convergence',
     hintAvailability: '3-stage progressive hints',
     iconName: 'build',
     howToPlay: [
-      { stepNumber: 1, title: 'Compare', description: 'Target 12 < arr[3] (23).' },
-      { stepNumber: 2, title: 'Update High', description: 'High becomes mid - 1 = 2.' },
-      { stepNumber: 3, title: 'Observe Range', description: 'Active range narrows to [0 .. 2].' },
+      { stepNumber: 1, title: 'Start Search', description: 'Compute mid for the full array and compare arr[mid] to target.' },
+      { stepNumber: 2, title: 'Iterate Half Choices', description: 'Choose left or right, narrowing LOW and HIGH at each iteration.' },
+      { stepNumber: 3, title: 'Declare Found', description: 'When arr[mid] === TARGET, confirm Target Found in O(log N) steps.' },
     ],
-    previewData: { array: [5, 12, 18, 23, 31, 39, 45], target: 12, low: 0, mid: 3, high: 6 },
+    previewData: { array: [5, 12, 19, 28, 37, 46, 55, 64, 73, 82, 91], target: 73, low: 0, mid: 5, high: 10 },
   },
 
   // =========================================================================
-  // LEVEL 04: CALCULATE MID (MIDPOINT MASTER)
+  // LEVEL 04: NOT FOUND & SEARCH RANGE COLLAPSE
   // =========================================================================
   {
     id: 4,
     levelNumber: 4,
-    title: 'MIDPOINT MASTER',
-    shortTitle: 'Midpoint Master',
-    subtitle: 'Calculate Midpoint',
-    tagline: 'mid = (low + high) / 2 and mid = low + (high - low) / 2.',
-    description: 'Calculate the middle index correctly using integer arithmetic.',
-    detailedObjective: 'Master both standard and overflow-safe midpoint formulas for integer indexing.',
-    difficulty: 'Beginner',
-    duration: '2 min',
-    xpReward: 120,
-    skills: ['Midpoint Formula', 'Integer Arithmetic', 'Overflow Prevention'],
-    interactionType: 'Calculation and verification',
+    title: 'NOT FOUND & SEARCH RANGE COLLAPSE',
+    shortTitle: 'Not Found & Range Collapse',
+    subtitle: 'Termination Conditions & Empty Range',
+    tagline: 'Search an absent target until LOW > HIGH, then confirm NOT FOUND.',
+    description: 'Understand how Binary Search detects that a target does not exist when the search range collapses to empty.',
+    detailedObjective: 'Master termination conditions and unsuccessful searches. Continue narrowing until low > high, verifying that the search space is empty.',
+    difficulty: 'HARD',
+    duration: '3 min',
+    xpReward: 180,
+    skills: ['Termination Conditions', 'Empty Search Space', 'Pointer Inversion', 'Unsuccessful Search (-1)'],
+    interactionType: 'Search until range exhaustion, then confirm Target Not Found',
     hintAvailability: '3-stage progressive hints',
     iconName: 'speed',
     howToPlay: [
-      { stepNumber: 1, title: 'Given Range', description: 'low = 2, high = 9.' },
-      { stepNumber: 2, title: 'Apply Formula', description: 'mid = Math.floor((2 + 9) / 2) = 5.' },
-      { stepNumber: 3, title: 'Verify', description: 'arr[5] = 29 matches the target.' },
+      { stepNumber: 1, title: 'Narrow Window', description: 'Execute binary search steps for a value absent from the array.' },
+      { stepNumber: 2, title: 'Pointers Cross', description: 'Watch boundaries narrow until low > high (0 elements remaining).' },
+      { stepNumber: 3, title: 'Confirm Not Found', description: 'Click TARGET NOT FOUND once the search range collapses.' },
     ],
-    previewData: { array: [3, 7, 11, 16, 22, 29, 36, 44, 53, 63], target: 29, low: 2, mid: 5, high: 9 },
+    previewData: { array: [10, 20, 30, 40, 50, 60, 70], target: 45, low: 0, mid: 3, high: 6 },
   },
 
   // =========================================================================
-  // LEVEL 05: COMPLETE THE SEARCH (SEARCH TO THE TARGET)
+  // LEVEL 05: DUPLICATES & OCCURRENCE SEARCH
   // =========================================================================
   {
     id: 5,
     levelNumber: 5,
-    title: 'SEARCH TO THE TARGET',
-    shortTitle: 'Search to the Target',
-    subtitle: 'Complete Algorithm Execution',
-    tagline: 'Find MID → Compare → Choose Half → Update Range → Repeat.',
-    description: 'Perform the complete Binary Search algorithm step by step.',
-    detailedObjective: 'Follow the full Binary Search process to eliminate half the array at every step.',
-    difficulty: 'Intermediate',
+    title: 'DUPLICATES & OCCURRENCE SEARCH',
+    shortTitle: 'Duplicates & Occurrence Search',
+    subtitle: 'First & Last Occurrence (Bounds)',
+    tagline: 'Locate the exact first or last occurrence when duplicates exist.',
+    description: 'Learn why finding a match is not enough when duplicates exist. Continue searching left for lower bound or right for upper bound.',
+    detailedObjective: 'Master Binary Search variations for duplicate elements. After finding TARGET == arr[mid], continue searching left for first occurrence or right for last occurrence.',
+    difficulty: 'HARD',
     duration: '3 min',
-    xpReward: 150,
-    skills: ['Full Execution', 'Iterative Loop', 'Convergence'],
-    interactionType: 'Multi-step interactive search',
+    xpReward: 200,
+    skills: ['Duplicate Elements', 'First Occurrence', 'Last Occurrence', 'Lower Bound', 'Upper Bound'],
+    interactionType: 'Duplicate-aware boundary narrowing until exact occurrence confirmed',
     hintAvailability: '3-stage progressive hints',
     iconName: 'target',
     howToPlay: [
-      { stepNumber: 1, title: 'Step 1', description: 'mid = 3 (23). Target 39 > 23 → search right (low = 4).' },
-      { stepNumber: 2, title: 'Step 2', description: 'mid = 5 (39). Target 39 === arr[5] → Target Found!' },
+      { stepNumber: 1, title: 'Match Found', description: 'arr[mid] matches target, but duplicate values exist adjacent to mid.' },
+      { stepNumber: 2, title: 'Continue Search', description: 'For First Occurrence search LEFT; for Last Occurrence search RIGHT.' },
+      { stepNumber: 3, title: 'Lock Boundary', description: 'Confirm match only when no more duplicates exist in that direction.' },
     ],
-    previewData: { array: [5, 12, 18, 23, 31, 39, 45, 60], target: 39, low: 0, mid: 3, high: 7 },
+    previewData: { array: [4, 12, 18, 18, 18, 32, 45, 60], target: 18, low: 0, mid: 3, high: 7 },
   },
 
   // =========================================================================
-  // LEVEL 06: TARGET NOT FOUND (FIND OR FAIL)
+  // LEVEL 06: BINARY SEARCH MASTER
   // =========================================================================
   {
     id: 6,
     levelNumber: 6,
-    title: 'FIND OR FAIL',
-    shortTitle: 'Find or Fail',
-    subtitle: 'Target Not Found',
-    tagline: 'Search until low > high, then conclude NOT FOUND.',
-    description: 'Search for a value that does not exist and detect failure.',
-    detailedObjective: 'Understand the stopping condition: when low > high, the target cannot exist.',
-    difficulty: 'Intermediate',
-    duration: '3 min',
-    xpReward: 150,
-    skills: ['Stopping Conditions', 'Empty Search Space', 'Target Not Found'],
-    interactionType: 'Search until exhaustion',
-    hintAvailability: '3-stage progressive hints',
-    iconName: 'predict',
-    howToPlay: [
-      { stepNumber: 1, title: 'Search Steps', description: 'Follow pointer narrowing for missing target 30.' },
-      { stepNumber: 2, title: 'Pointers Cross', description: 'low becomes 4, high becomes 3 (low > high).' },
-      { stepNumber: 3, title: 'Conclude', description: 'Click TARGET NOT FOUND.' },
-    ],
-    previewData: { array: [5, 12, 18, 23, 31, 45, 60], target: 30, low: 0, mid: 3, high: 6 },
-  },
-
-  // =========================================================================
-  // LEVEL 07: DEBUG BINARY SEARCH (FIX THE SEARCH)
-  // =========================================================================
-  {
-    id: 7,
-    levelNumber: 7,
-    title: 'FIX THE SEARCH',
-    shortTitle: 'Fix the Search',
-    subtitle: 'Debug Binary Search',
-    tagline: 'Identify and fix incorrect pointer updates.',
-    description: 'Identify incorrect boundary updates and debug algorithm.',
-    detailedObjective: 'Spot buggy boundary logic: when target > mid, low must be mid + 1, not mid - 1.',
-    difficulty: 'Intermediate',
-    duration: '3 min',
-    xpReward: 160,
-    skills: ['Debugging', 'Code Inspection', 'Boundary Invariants'],
-    interactionType: 'Bug identification and correction',
+    title: 'BINARY SEARCH MASTER',
+    shortTitle: 'Binary Search Master',
+    subtitle: 'Final Boss: Debugging & Advanced Reasoning',
+    tagline: 'Debug boundary mistakes and conquer the final comprehensive search exam.',
+    description: 'Final Boss Level: Identify and fix realistic Binary Search logic bugs, then execute complete search on large arrays.',
+    detailedObjective: 'Combine Binary Search reasoning, boundary management, debugging, and algorithmic thinking into the final boss challenge.',
+    difficulty: 'DIFFICULT',
+    duration: '4 min',
+    xpReward: 250,
+    skills: ['Algorithmic Debugging', 'Boundary Invariant Proofs', 'Large Datasets', 'Complete Mastery'],
+    interactionType: 'Diagnose & fix pointer bug followed by comprehensive 14-element search',
     hintAvailability: '3-stage progressive hints',
     iconName: 'debug',
     howToPlay: [
-      { stepNumber: 1, title: 'Spot Bug', description: 'Target 50 > mid 30, but algorithm set LOW = MID - 1.' },
-      { stepNumber: 2, title: 'Analyze', description: 'Setting low = mid - 1 moves in the wrong direction.' },
-      { stepNumber: 3, title: 'Fix', description: 'Correct update is LOW = MID + 1 (Search Right).' },
+      { stepNumber: 1, title: 'Diagnose Bug', description: 'Spot incorrect pointer update logic (e.g. wrong direction or low = mid).' },
+      { stepNumber: 2, title: 'Execute Fix', description: 'Apply the proper boundary update (low = mid + 1) and search right.' },
+      { stepNumber: 3, title: 'Conquer Master Exam', description: 'Complete a 14-element multi-iteration search with zero guidance.' },
     ],
-    previewData: { array: [10, 20, 30, 40, 50, 60, 70], target: 50, low: 0, mid: 2, high: 6 },
-  },
-
-  // =========================================================================
-  // LEVEL 08: FIRST OCCURRENCE (FIND THE FIRST)
-  // =========================================================================
-  {
-    id: 8,
-    levelNumber: 8,
-    title: 'FIND THE FIRST',
-    shortTitle: 'Find the First',
-    subtitle: 'First Occurrence in Duplicates',
-    tagline: 'Found match? Check if another duplicate exists on the left!',
-    description: 'Search left after matching target to locate the first occurrence.',
-    detailedObjective: 'Master the lower-bound variation where duplicate elements exist.',
-    difficulty: 'Advanced',
-    duration: '3 min',
-    xpReward: 180,
-    skills: ['Duplicate Handling', 'First Occurrence', 'Lower Bound'],
-    interactionType: 'Duplicate-aware boundary narrowing',
-    hintAvailability: '3-stage progressive hints',
-    iconName: 'target',
-    howToPlay: [
-      { stepNumber: 1, title: 'Match Found', description: 'arr[2] == 4 matches target 4.' },
-      { stepNumber: 2, title: 'Check Left', description: 'arr[1] is also 4! Continue searching left.' },
-      { stepNumber: 3, title: 'First Confirmed', description: 'Confirm index 1 is the first occurrence.' },
-    ],
-    previewData: { array: [2, 4, 4, 4, 7, 9], target: 4, low: 0, mid: 2, high: 5 },
-  },
-
-  // =========================================================================
-  // LEVEL 09: LAST OCCURRENCE (FIND THE LAST)
-  // =========================================================================
-  {
-    id: 9,
-    levelNumber: 9,
-    title: 'FIND THE LAST',
-    shortTitle: 'Find the Last',
-    subtitle: 'Last Occurrence in Duplicates',
-    tagline: 'Found match? Check if another duplicate exists on the right!',
-    description: 'Search right after matching target to locate the final occurrence.',
-    detailedObjective: 'Master the upper-bound variation where duplicate elements exist.',
-    difficulty: 'Advanced',
-    duration: '3 min',
-    xpReward: 180,
-    skills: ['Duplicate Handling', 'Last Occurrence', 'Upper Bound'],
-    interactionType: 'Duplicate-aware boundary narrowing',
-    hintAvailability: '3-stage progressive hints',
-    iconName: 'target',
-    howToPlay: [
-      { stepNumber: 1, title: 'Match Found', description: 'arr[2] == 4 matches target 4.' },
-      { stepNumber: 2, title: 'Check Right', description: 'arr[3] is also 4! Continue searching right.' },
-      { stepNumber: 3, title: 'Last Confirmed', description: 'Confirm index 3 is the final occurrence.' },
-    ],
-    previewData: { array: [2, 4, 4, 4, 7, 9], target: 4, low: 0, mid: 2, high: 5 },
-  },
-
-  // =========================================================================
-  // LEVEL 10: FINAL BINARY SEARCH CHALLENGE (BINARY SEARCH MASTER)
-  // =========================================================================
-  {
-    id: 10,
-    levelNumber: 10,
-    title: 'BINARY SEARCH MASTER',
-    shortTitle: 'Binary Search Master',
-    subtitle: 'Final Challenge',
-    tagline: 'Demonstrate complete Binary Search mastery independently.',
-    description: 'Solve a larger sorted array problem without automatic guidance.',
-    detailedObjective: 'Combine low/mid/high, mid calculation, range reduction, and target convergence.',
-    difficulty: 'Expert',
-    duration: '4 min',
-    xpReward: 250,
-    skills: ['Complete Mastery', 'Large Datasets', 'O(log n) Precision', 'Independent Problem Solving'],
-    interactionType: 'Comprehensive independent challenge',
-    hintAvailability: '3-stage progressive hints',
-    iconName: 'target',
-    howToPlay: [
-      { stepNumber: 1, title: '12 Elements', description: 'Array has 12 items (indices 0..11), target = 51.' },
-      { stepNumber: 2, title: 'Full Trace', description: 'Independently narrow the range step by step.' },
-      { stepNumber: 3, title: 'Find Target', description: 'Arrive at index 7 and declare Target Found.' },
-    ],
-    previewData: { array: [3, 8, 14, 19, 27, 34, 42, 51, 63, 71, 85, 96], target: 51, low: 0, mid: 5, high: 11 },
+    previewData: { array: [3, 8, 14, 21, 29, 38, 47, 56, 68, 77, 85, 93, 102, 115], target: 77, low: 0, mid: 6, high: 13 },
   },
 ];

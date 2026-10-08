@@ -62,8 +62,20 @@ export const GameHub: React.FC<GameHubProps> = ({
     }
   };
 
-  const getDifficultyBadge = (difficulty: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert' | string) => {
+  const getDifficultyBadge = (difficulty: string) => {
     switch (difficulty) {
+      case 'MEDIUM':
+      case 'Medium':
+        return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800';
+      case 'MEDIUM-HARD':
+      case 'Medium-Hard':
+        return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800';
+      case 'HARD':
+      case 'Hard':
+        return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800';
+      case 'DIFFICULT':
+      case 'Difficult':
+        return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800';
       case 'Beginner':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800';
       case 'Intermediate':
@@ -92,11 +104,11 @@ export const GameHub: React.FC<GameHubProps> = ({
           GAME
         </h1>
         <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
-          Practice Binary Search concepts through 10 interactive challenges.
+          Practice Binary Search concepts through 6 interactive challenges.
         </p>
       </div>
 
-      {/* ─── 2. ALL 10 GAME CARDS (2-Col on Desktop/Tablet, 1-Col on Mobile) ─── */}
+      {/* ─── 2. ALL 6 GAME CARDS (2-Col on Desktop/Tablet, 1-Col on Mobile) ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
         {GAME_CATALOG.map((game) => {
           const isCompleted = completedLevels.includes(game.id);

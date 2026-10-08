@@ -29,14 +29,14 @@ interface TheoryViewProps {
   onNavigateToLab?: () => void;
 }
 
-type CodeLanguage = 'javascript' | 'python' | 'java' | 'cpp' | 'c';
+type CodeLanguage = 'python' | 'java' | 'cpp' | 'c';
 
 export const TheoryView: React.FC<TheoryViewProps> = ({
   progress,
   onUpdateProgress,
 }) => {
   const [activeChapterIndex, setActiveChapterIndex] = useState<number>(0);
-  const [selectedLanguage, setSelectedLanguage] = useState<CodeLanguage>('javascript');
+  const [selectedLanguage, setSelectedLanguage] = useState<CodeLanguage>('python');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [showMobileToc, setShowMobileToc] = useState<boolean>(false);
 
@@ -127,7 +127,6 @@ export const TheoryView: React.FC<TheoryViewProps> = ({
     if (!lesson.codeSnippet) return '// Code implementation in progress';
     return (
       lesson.codeSnippet[lang] ||
-      lesson.codeSnippet.javascript ||
       lesson.codeSnippet.python ||
       lesson.codeSnippet.java ||
       lesson.codeSnippet.cpp ||
@@ -537,9 +536,8 @@ export const TheoryView: React.FC<TheoryViewProps> = ({
 
                   {/* Language Selector */}
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto">
-                    {(['javascript', 'python', 'java', 'cpp', 'c'] as CodeLanguage[]).map((lang) => {
+                    {(['python', 'java', 'cpp', 'c'] as CodeLanguage[]).map((lang) => {
                       const labels: Record<CodeLanguage, string> = {
-                        javascript: 'JAVASCRIPT',
                         python: 'PYTHON',
                         java: 'JAVA',
                         cpp: 'C++',
@@ -574,9 +572,7 @@ export const TheoryView: React.FC<TheoryViewProps> = ({
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
                       <span className="text-[11px] text-slate-400 ml-2 font-mono">
-                        {selectedLanguage === 'javascript'
-                          ? 'binary_search.js'
-                          : selectedLanguage === 'python'
+                        {selectedLanguage === 'python'
                           ? 'binary_search.py'
                           : selectedLanguage === 'java'
                           ? 'BinarySearch.java'

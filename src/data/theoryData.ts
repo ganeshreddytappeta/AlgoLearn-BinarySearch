@@ -1,26 +1,6 @@
 import { TheoryLesson } from '../types';
 
 export const BINARY_SEARCH_CODE = {
-  javascript: `function binarySearch(arr, target) {
-    let low = 0;
-    let high = arr.length - 1;
-
-    while (low <= high) {
-        const mid = low + Math.floor((high - low) / 2);
-
-        if (arr[mid] === target) {
-            return mid;
-        }
-
-        if (arr[mid] < target) {
-            low = mid + 1;
-        } else {
-            high = mid - 1;
-        }
-    }
-
-    return -1;
-}`,
   python: `def binary_search(arr, target):
     low = 0
     high = len(arr) - 1
@@ -762,13 +742,12 @@ Each comparison removes roughly half of the remaining search space. After $k$ co
     chapterNumber: '11',
     categoryLabel: 'MULTI-LANGUAGE CODE',
     lessonNumber: 11,
-    title: '11. Code Implementations (JS, Python, Java, C++, C)',
-    shortDesc: 'Inspect production implementations across JavaScript, Python, Java, C++, and C.',
+    title: '11. Code Implementations (Python, Java, C++, C)',
+    shortDesc: 'Inspect production implementations across Python, Java, C++, and C.',
     readTime: '2 min read',
     executiveDefinition:
-      'Standard, beginner-friendly Binary Search implementations maintaining identical logic across JavaScript, Python, Java, C++, and C.',
+      'Standard, beginner-friendly Binary Search implementations maintaining identical logic across Python, Java, C++, and C.',
     criticalSpecifications: [
-      'JavaScript: function binarySearch(arr, target) using Math.floor((high - low) / 2).',
       'Python: def binary_search(arr, target) using integer floor division //.',
       'Java: static int binarySearch(int[] arr, int target) using (high - low) / 2.',
       'C++: int binarySearch(int arr[], int n, int target).',
@@ -783,7 +762,6 @@ Each comparison removes roughly half of the remaining search space. After $k$ co
       title: 'Language Feature Highlights',
       description: 'Subtle differences in language syntax:',
       steps: [
-        'JavaScript: Array.length, Math.floor()',
         'Python: len(arr), // operator, snake_case',
         'Java: arr.length, static method signature',
         'C & C++: Explicit size parameter n, pointer passing',
@@ -792,26 +770,26 @@ Each comparison removes roughly half of the remaining search space. After $k$ co
     visualDiagram: {
       type: 'before-after',
       operationLabel: 'Universal Algorithm Blueprint',
-      notes: 'Preserves all existing language tabs.',
-      diagramText: `  JavaScript │ Python     │ Java       │ C++        │ C
-  ───────────┼────────────┼────────────┼────────────┼──────────
-  Math.floor │ //         │ / 2        │ / 2        │ / 2
-  let low=0  │ low = 0    │ int low=0  │ int low=0  │ int low=0
-  low<=high  │ low<=high  │ low<=high  │ low<=high  │ low<=high
-  return -1  │ return -1  │ return -1  │ return -1  │ return -1`,
+      notes: 'Preserves all active language tabs.',
+      diagramText: `  Python     │ Java       │ C++        │ C
+  ───────────┼────────────┼────────────┼──────────
+  //         │ / 2        │ / 2        │ / 2
+  low = 0    │ int low=0  │ int low=0  │ int low=0
+  low<=high  │ low<=high  │ low<=high  │ low<=high
+  return -1  │ return -1  │ return -1  │ return -1`,
     },
     content: `### Multi-Language Code Implementations
 Binary Search is universally implemented with the same structure:
 1. Initialize \`low = 0\` and \`high = length - 1\`.
 2. Loop while \`low <= high\`.
 3. Compute \`mid = low + (high - low) / 2\`.
-4. Branch on \`arr[mid] === target\`, \`arr[mid] < target\`, or \`arr[mid] > target\`.
+4. Branch on \`arr[mid] == target\`, \`arr[mid] < target\`, or \`arr[mid] > target\`.
 5. Return \`-1\` if not found.`,
     codeSnippet: BINARY_SEARCH_CODE,
-    timeComplexity: 'O(log n) in all 5 languages',
-    spaceComplexity: 'O(1) in all 5 languages',
+    timeComplexity: 'O(log n) in all 4 languages',
+    spaceComplexity: 'O(1) in all 4 languages',
     keyTakeaway:
-      'Binary Search logic is identical across JavaScript, Python, Java, C++, and C. Master the concepts once, and you can write it in any language.',
+      'Binary Search logic is identical across Python, Java, C++, and C. Master the concepts once, and you can write it in any language.',
     interactiveDemoType: 'binary-search',
   },
 

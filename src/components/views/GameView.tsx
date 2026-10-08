@@ -155,8 +155,12 @@ export const GameView: React.FC<GameViewProps> = ({
   const initializeChallenge = useCallback(
     (challenge: BinarySearchChallenge) => {
       if (!challenge) return;
-      const initialLow = 0;
-      const initialHigh = challenge.array.length - 1;
+      const initialLow =
+        challenge.initialLow !== undefined ? challenge.initialLow : 0;
+      const initialHigh =
+        challenge.initialHigh !== undefined
+          ? challenge.initialHigh
+          : challenge.array.length - 1;
       const initialMid = Math.floor(initialLow + (initialHigh - initialLow) / 2);
 
       setLow(initialLow);
@@ -985,13 +989,13 @@ export const GameView: React.FC<GameViewProps> = ({
                   Level
                 </span>
                 <span className="text-xs sm:text-sm font-black text-blue-600 dark:text-blue-400 font-mono">
-                  {currentLevel.levelNumber < 10 ? `0${currentLevel.levelNumber}` : currentLevel.levelNumber} of 10
+                  {currentLevel.levelNumber < 10 ? `0${currentLevel.levelNumber}` : currentLevel.levelNumber} of 6
                 </span>
               </div>
             </div>
           </div>
 
-          {/* 10 LEVEL CARDS: Main Entry Points */}
+          {/* 6 LEVEL CARDS: Main Entry Points */}
           <LevelCardGrid
             levels={GAME_CATALOG}
             activeLevelId={activeLevelId}
@@ -999,7 +1003,7 @@ export const GameView: React.FC<GameViewProps> = ({
             onSelectLevel={handleOpenLevel}
           />
 
-          {/* BINARY SEARCH EXPERIMENT LAB: Placed directly below the 10 cards */}
+          {/* BINARY SEARCH EXPERIMENT LAB: Placed directly below the 6 cards */}
           <BinarySearchLabCard onOpenLab={() => setScreenMode('lab')} />
         </div>
       )}
@@ -1033,7 +1037,7 @@ export const GameView: React.FC<GameViewProps> = ({
             {/* In-game HUD stats */}
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                Level {currentLevel.levelNumber < 10 ? `0${currentLevel.levelNumber}` : currentLevel.levelNumber} of 10
+                Level {currentLevel.levelNumber < 10 ? `0${currentLevel.levelNumber}` : currentLevel.levelNumber} of 6
               </div>
               <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-amber-500 flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 fill-amber-500" />

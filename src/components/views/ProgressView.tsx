@@ -143,12 +143,12 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   // Dynamic Learning Areas Stats
   const completedLearn = Math.min(12, progress.completedTheoryChapters?.length || 0);
   const completedLabs = Math.min(2, progress.completedLabs?.length || 0);
-  const completedGames = Math.min(10, progress.completedGameLevels?.length || 0);
+  const completedGames = Math.min(6, progress.completedGameLevels?.length || 0);
 
   // Overall Mastery Calculation synchronized with Sidebar and 4 learning areas
-  const totalActivities = 25; // 12 Theory + 2 Videos + 10 Games + 1 Quiz
+  const totalActivities = 21; // 12 Theory + 2 Videos + 6 Games + 1 Quiz
   const completedActivities = Math.min(
-    25,
+    21,
     completedLearn + completedLabs + completedGames + (progress.quizCompleted ? 1 : 0)
   );
   const masteryPercentage = Math.round((completedActivities / totalActivities) * 100);
@@ -210,7 +210,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
         tab: 'lab' as TabType,
       };
     }
-    if (completedGames < 10) {
+    if (completedGames < 6) {
       return {
         title: 'TRY BINARY SEARCH CHALLENGES',
         description: 'Apply your knowledge by solving interactive Binary Search problems.',
@@ -242,45 +242,52 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
       ? BINARY_SEARCH_MODULES
       : BINARY_SEARCH_MODULES.filter((m) => m.category === selectedCategory);
 
-  // Master Challenges
-  const MASTER_CHALLENGES = [
+  // Binary Search Game Levels Progress (Exactly 6 Levels)
+  const GAME_LEVEL_PROGRESS = [
     {
       id: 1,
       number: '01',
-      title: 'Master Sorted Search',
-      desc: 'Verify sorted array preconditions and calculate the initial middle element.',
-      isDone: progress.completedGameLevels.includes(1),
+      title: 'MIDPOINT & BOUNDARIES',
+      desc: 'Understand LOW, HIGH, and calculate MID with both standard and overflow-safe formulas.',
+      isDone: (progress.completedGameLevels || []).includes(1),
     },
     {
       id: 2,
       number: '02',
-      title: 'Master Low / Mid / High',
-      desc: 'Master boundary pointers adjustments based on target comparisons.',
-      isDone:
-        progress.completedGameLevels.includes(2) ||
-        progress.completedGameLevels.includes(3),
+      title: 'CHOOSE THE CORRECT HALF',
+      desc: 'Compare TARGET with arr[mid] and actively choose the correct half to eliminate.',
+      isDone: (progress.completedGameLevels || []).includes(2),
     },
     {
       id: 3,
       number: '03',
-      title: 'Master Range Reduction',
-      desc: 'Achieve optimal half-elimination with zero boundary overshoot.',
-      isDone:
-        progress.completedGameLevels.includes(4) ||
-        progress.completedGameLevels.includes(6),
+      title: 'COMPLETE THE SEARCH',
+      desc: 'Perform complete multi-iteration search until locating the target.',
+      isDone: (progress.completedGameLevels || []).includes(3),
     },
     {
       id: 4,
       number: '04',
-      title: 'Master Binary Search Problems',
-      desc: 'Solve multi-step search problems and handle edge cases with precision.',
-      isDone:
-        progress.completedGameLevels.includes(5) ||
-        progress.completedGameLevels.includes(11) ||
-        progress.completedGameLevels.includes(16),
+      title: 'NOT FOUND & SEARCH RANGE COLLAPSE',
+      desc: 'Recognize when search range collapses (LOW > HIGH) and target is not present.',
+      isDone: (progress.completedGameLevels || []).includes(4),
+    },
+    {
+      id: 5,
+      number: '05',
+      title: 'DUPLICATES & OCCURRENCE SEARCH',
+      desc: 'Continue search after match to find first or last occurrences in duplicate arrays.',
+      isDone: (progress.completedGameLevels || []).includes(5),
+    },
+    {
+      id: 6,
+      number: '06',
+      title: 'BINARY SEARCH MASTER',
+      desc: 'Debug off-by-one pointer errors, fix broken boundary updates, and master complexity.',
+      isDone: (progress.completedGameLevels || []).includes(6),
     },
   ];
-  const masterSolvedCount = MASTER_CHALLENGES.filter((c) => c.isDone).length;
+  const completedGameCount = GAME_LEVEL_PROGRESS.filter((c) => c.isDone).length;
 
   const getAchievementIcon = (name: string) => {
     switch (name) {
@@ -345,11 +352,11 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
                 OVERALL COMPLETION
               </span>
               <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
-                ({completedLearn} of 12 Binary Search Modules)
+                ({completedActivities} of 21 Activities)
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Overall mastery reflects your completed Binary Search learning activities.
+              Overall mastery reflects your completed Binary Search learning activities across Theory (12), Visualize (2), Game (6), and Quiz (1).
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -413,7 +420,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
         >
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-              VIDEOS
+              VISUALIZE
             </span>
             <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
@@ -432,7 +439,9 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
             />
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
-            {completedLabs} / 2 Completed
+            {completedLabs === 2
+              ? '✓ All 2 videos watched'
+              : `${2 - completedLabs} video${2 - completedLabs === 1 ? '' : 's'} remaining`}
           </p>
         </div>
 
@@ -452,23 +461,23 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">
-              {completedGames} / 10
+              {completedGames} / 6
             </span>
             <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
-              Challenges
+              Levels
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
             <div
               className="h-full bg-emerald-600 dark:bg-emerald-500 transition-all duration-300"
-              style={{ width: `${Math.round((completedGames / 10) * 100)}%` }}
+              style={{ width: `${Math.round((completedGames / 6) * 100)}%` }}
             />
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2 font-medium">
-            {completedGames === 10
-              ? '✓ Completed'
+            {completedGames === 6
+              ? '✓ All 6 levels completed'
               : completedGames > 0
-              ? '◐ In Progress'
+              ? `${completedGames} of 6 levels done`
               : '○ Not Started'}
           </p>
         </div>
@@ -492,7 +501,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
               {quizAnswered} / 10
             </span>
             <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
-              Answered
+              Questions
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
@@ -738,31 +747,31 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
         </div>
       </div>
 
-      {/* ─── 7. MASTER CHALLENGES ─── */}
+      {/* ─── 7. BINARY SEARCH GAME LEVELS (6 LEVELS) ─── */}
       <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-5">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Master Challenges
+              Binary Search Game Levels
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Complete interactive problem-solving benchmarks to test your algorithmic speed and precision.
+              Progressive interactive challenges from Midpoint basics to advanced Binary Search debugging.
             </p>
           </div>
-          <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-3 py-1 rounded-xl border border-blue-200 dark:border-blue-800">
-            {masterSolvedCount}/4 Solved
+          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-3 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800">
+            {completedGameCount}/6 Completed
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {MASTER_CHALLENGES.map((ch) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {GAME_LEVEL_PROGRESS.map((ch) => (
             <div
               key={ch.id}
               onClick={() => {
                 soundEffects.playClick();
                 if (onNavigateTab) onNavigateTab('game');
               }}
-              className={`p-4 rounded-xl border flex flex-col justify-between cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 transition-all ${
+              className={`p-4 rounded-xl border flex flex-col justify-between cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 transition-all ${
                 ch.isDone
                   ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/20'
                   : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40'
@@ -771,7 +780,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-mono font-bold text-slate-400">
-                    CHALLENGE {ch.number}
+                    LEVEL {ch.number}
                   </span>
                   {ch.isDone ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -795,7 +804,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
                       : 'text-slate-500'
                   }`}
                 >
-                  {ch.isDone ? 'Solved' : 'Locked'}
+                  {ch.isDone ? 'Completed' : 'Locked'}
                 </span>
               </div>
             </div>

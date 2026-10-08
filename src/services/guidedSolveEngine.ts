@@ -63,7 +63,10 @@ export function calculateTotalGuideStages(
   startLow: number,
   startHigh: number
 ): number {
-  // Single-decision question (e.g. Level 2, Level 3, Level 7)
+  // Single-decision question or midpoint verification
+  if (challenge.targetAction === 'FOUND') {
+    return 3; // 1: Range -> 2: Mid -> 3: Compare & Found
+  }
   if (challenge.targetAction) {
     return 4; // 1: Range -> 2: Mid -> 3: Compare & Decision -> 4: Boundary/Result Explanation
   }
@@ -244,8 +247,8 @@ export function getGuidedStepDetails(
       symbol = '>';
       expression = `target (${target}) > arr[${mid}] (${midVal})`;
 
-      if (challenge.id.startsWith('l7-c1') || challenge.id === 'l7-c1') {
-        comparisonExplanation = `Target (${target}) > arr[${mid}] (${midVal}). The buggy code incorrectly executed low = mid - 1. To advance into the right half and avoid an infinite loop, we must advance LOW forward past mid.`;
+      if (challenge.id.startsWith('l6-c1') || challenge.id === 'l6-c1' || challenge.mode === 'debug') {
+        comparisonExplanation = `Target (${target}) > arr[${mid}] (${midVal}). The buggy code incorrectly executed low = mid - 1 (or failed to advance low past mid). To advance into the right half and avoid an infinite loop, we must advance LOW forward past mid (low = mid + 1).`;
         directionQuestion = 'Which pointer update fixes the search?';
       } else {
         comparisonExplanation = `The target (${target}) is greater than arr[${mid}] (${midVal}). Because the array is sorted in ascending order, all elements at and to the left of mid are too small. The target must be in the right half.`;
@@ -255,7 +258,7 @@ export function getGuidedStepDetails(
       symbol = '<';
       expression = `target (${target}) < arr[${mid}] (${midVal})`;
 
-      if (challenge.id.startsWith('l7-c2') || challenge.id === 'l7-c2') {
+      if (challenge.mode === 'debug') {
         comparisonExplanation = `Target (${target}) < arr[${mid}] (${midVal}). The buggy code moved right, which would eliminate the target! The correct algorithmic update is to search left by setting high = mid - 1.`;
         directionQuestion = 'Which pointer update fixes the search?';
       } else {
