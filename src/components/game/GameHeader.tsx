@@ -1,5 +1,5 @@
 import React from 'react';
-import { RotateCcw, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { GameLevelConfig, UserProgress } from '../../types';
 
 interface GameHeaderProps {
@@ -13,7 +13,7 @@ interface GameHeaderProps {
   isLabActive?: boolean;
   onOpenLab?: () => void;
   onSelectLevel: (levelId: number) => void;
-  onResetChallenge: () => void;
+  onResetChallenge?: () => void;
   onResetGame?: () => void;
   onBackToHub?: () => void;
   onOpenGuidedSolve?: () => void;
@@ -64,7 +64,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Round Counter & Restart Button Side-by-Side */}
+        {/* Right: Round Counter */}
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -74,16 +74,6 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
               {currentChallengeIndex + 1} / {totalChallenges}
             </div>
           </div>
-
-          {/* Reset Current Round Button */}
-          <button
-            onClick={onResetChallenge}
-            title="Reset Round"
-            aria-label="Reset Round"
-            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer shadow-2xs active:scale-90 shrink-0"
-          >
-            <RotateCcw className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-          </button>
         </div>
       </div>
 

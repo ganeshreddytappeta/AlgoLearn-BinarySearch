@@ -47,8 +47,11 @@ export const QuizView: React.FC<QuizViewProps> = ({
 }) => {
   const [currentIdx, setCurrentIdx] = useState<number>(0);
   const [answers, setAnswers] = useState<Record<number, QuestionAnswerState>>({});
-  // Per-question tracking of whether "Start Quiz" has been clicked
-  const [questionStarted, setQuestionStarted] = useState<Record<number, boolean>>({});
+  // Track whether the quiz has been started by the user (prompted once at the beginning)
+  const [isQuizStarted, setIsQuizStarted] = useState<boolean>(() => {
+    const answeredCount = Object.keys(progress.topicPoints?.quizQuestionAnswered || {}).length;
+    return answeredCount > 0;
+  });
   const [timeLeft, setTimeLeft] = useState<number>(QUESTION_TIME_LIMIT);
   const [quizFinished, setQuizFinished] = useState<boolean>(false);
   const [reviewQuestionIdx, setReviewQuestionIdx] = useState<number | null>(null);
@@ -61,7 +64,6 @@ export const QuizView: React.FC<QuizViewProps> = ({
     isCorrect: false,
   };
 
-  const isCurrentStarted = Boolean(questionStarted[currentIdx]);
   const isCurrentSubmitted = Boolean(currentAnswerState.isSubmitted);
 
   // Sync initial state if progress already contains scored questions
@@ -119,22 +121,22 @@ export const QuizView: React.FC<QuizViewProps> = ({
     }
   }, [currentIdx, currentQ]);
 
-  // Reset timer on question switch
+  // Update timer on question switch
   useEffect(() => {
     if (answers[currentIdx]?.isSubmitted) {
       setTimeLeft(0);
-    } else if (questionStarted[currentIdx]) {
-      // If already started, keep or reset to 30
+    } else if (isQuizStarted) {
+      // Once started at the beginning, each unsubmitted question automatically receives 30s
       setTimeLeft(QUESTION_TIME_LIMIT);
     } else {
       setTimeLeft(QUESTION_TIME_LIMIT);
     }
-  }, [currentIdx, answers, questionStarted]);
+  }, [currentIdx, answers, isQuizStarted]);
 
-  // 30-Second Countdown timer for active question (runs ONLY after pressing Start Quiz)
+  // 30-Second Countdown timer for active unsubmitted question (runs automatically once quiz has been started)
   useEffect(() => {
     if (quizFinished) return;
-    if (!questionStarted[currentIdx]) return;
+    if (!isQuizStarted) return;
     if (answers[currentIdx]?.isSubmitted) return;
 
     const interval = setInterval(() => {
@@ -149,12 +151,12 @@ export const QuizView: React.FC<QuizViewProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentIdx, questionStarted, answers, quizFinished]);
+  }, [currentIdx, isQuizStarted, answers, quizFinished]);
 
-  // Start Quiz button handler for the current question
+  // Start Quiz button handler (triggered once at the beginning to commence the quiz)
   const handleStartQuiz = () => {
     soundEffects.playClick();
-    setQuestionStarted((prev) => ({ ...prev, [currentIdx]: true }));
+    setIsQuizStarted(true);
     setTimeLeft(QUESTION_TIME_LIMIT);
   };
 
@@ -184,7 +186,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   const handleSelectOption = (opt: string) => {
-    if (!isCurrentStarted || isCurrentSubmitted) return;
+    if (!isQuizStarted || isCurrentSubmitted) return;
     soundEffects.playClick();
     setAnswers((prev) => ({
       ...prev,
@@ -200,7 +202,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   const handleDragReorder = (sourceIdx: number, targetIdx: number) => {
-    if (!isCurrentStarted || isCurrentSubmitted) return;
+    if (!isQuizStarted || isCurrentSubmitted) return;
     const currentList =
       currentAnswerState.draggedOrder.length > 0
         ? [...currentAnswerState.draggedOrder]
@@ -222,7 +224,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   const handleSubmitAnswer = () => {
-    if (!isCurrentStarted || isCurrentSubmitted) return;
+    if (!isQuizStarted || isCurrentSubmitted) return;
     soundEffects.playClick();
 
     let isCorrect = false;
@@ -341,7 +343,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
     soundEffects.playClick();
     setCurrentIdx(0);
     setAnswers({});
-    setQuestionStarted({});
+    setIsQuizStarted(false);
     setTimeLeft(QUESTION_TIME_LIMIT);
     setQuizFinished(false);
     setReviewQuestionIdx(null);
@@ -469,7 +471,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
             <div className="flex items-center gap-2.5">
               {!isCurrentSubmitted ? (
                 <>
-                  {!isCurrentStarted ? (
+                  {!isQuizStarted ? (
                     <button
                       onClick={handleStartQuiz}
                       className="px-4 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 hover:from-indigo-700 hover:via-blue-700 hover:to-purple-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
@@ -487,10 +489,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
                     </button>
                   )}
 
-                  {/* 30s Timer Badge (ticking only after pressing Start Quiz) */}
+                  {/* 30s Timer Badge (ticking automatically once quiz is started at the beginning) */}
                   <div
                     className={`px-3 py-1 rounded-full text-xs font-mono font-semibold border flex items-center gap-1.5 transition-colors ${
-                      isCurrentStarted
+                      isQuizStarted
                         ? timeLeft <= 10
                           ? 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-800 animate-pulse font-bold'
                           : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -542,16 +544,16 @@ export const QuizView: React.FC<QuizViewProps> = ({
             </h2>
           </div>
 
-          {/* Prompt banner if student has not pressed Start Quiz */}
-          {!isCurrentStarted && !isCurrentSubmitted && (
+          {/* Prompt banner shown ONCE at the beginning if student has not started quiz yet */}
+          {!isQuizStarted && !isCurrentSubmitted && (
             <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs font-medium flex items-center justify-between gap-3">
               <span className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span>Click <strong>Start Quiz</strong> above to begin the 30-second timer and unlock answer options.</span>
+                <span>Click <strong>Start Quiz</strong> above to begin the 30-second timer per question and unlock answer options.</span>
               </span>
               <button
                 onClick={handleStartQuiz}
-                className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 cursor-pointer shadow-xs active:scale-95 transition-all"
               >
                 Start Quiz
               </button>
@@ -579,7 +581,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                   'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400';
 
                 // If not started yet: preview mode with light gray text
-                if (!isCurrentStarted && !isCurrentSubmitted) {
+                if (!isQuizStarted && !isCurrentSubmitted) {
                   cardStyle =
                     'border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-850/40 text-slate-400 dark:text-slate-500 cursor-not-allowed';
                   letterStyle =
@@ -612,7 +614,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                   <button
                     key={opt}
                     onClick={() => handleSelectOption(opt)}
-                    disabled={!isCurrentStarted || isCurrentSubmitted}
+                    disabled={!isQuizStarted || isCurrentSubmitted}
                     className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 text-xs sm:text-sm cursor-pointer ${cardStyle}`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
@@ -652,7 +654,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                 ).map((item, idx) => (
                   <div
                     key={item}
-                    draggable={isCurrentStarted && !isCurrentSubmitted}
+                    draggable={isQuizStarted && !isCurrentSubmitted}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', String(idx));
                     }}
@@ -663,7 +665,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                       handleDragReorder(sourceIdx, idx);
                     }}
                     className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-between ${
-                      !isCurrentStarted && !isCurrentSubmitted
+                      !isQuizStarted && !isCurrentSubmitted
                         ? 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed'
                         : isCurrentSubmitted
                         ? currentAnswerState.isCorrect
@@ -712,7 +714,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
             </button>
 
             <div className="flex items-center gap-2">
-              {isCurrentStarted && !isCurrentSubmitted && (
+              {isQuizStarted && !isCurrentSubmitted && (
                 <button
                   onClick={handleSubmitAnswer}
                   disabled={!currentAnswerState.selectedOption && currentQ.type !== 'drag-order'}

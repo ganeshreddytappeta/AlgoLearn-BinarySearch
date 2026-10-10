@@ -16,7 +16,7 @@ interface HeaderProps {
   progress: UserProgress;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
-  onResetProgress: () => void;
+  onResetProgress?: () => void;
   onSelectTab: (tab: TabType) => void;
 }
 
@@ -25,7 +25,6 @@ export const Header: React.FC<HeaderProps> = ({
   progress,
   isSidebarOpen,
   onToggleSidebar,
-  onResetProgress,
   onSelectTab,
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(soundEffects.getMuted());
