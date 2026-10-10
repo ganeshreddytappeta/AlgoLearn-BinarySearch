@@ -37,7 +37,7 @@ interface QuestionAnswerState {
   pointsDelta?: number;
 }
 
-const QUESTION_TIME_LIMIT = 30; // 30 seconds per question
+const QUESTION_TIME_LIMIT = 20; // 20 seconds per question
 
 export const QuizView: React.FC<QuizViewProps> = ({
   progress,
@@ -126,14 +126,14 @@ export const QuizView: React.FC<QuizViewProps> = ({
     if (answers[currentIdx]?.isSubmitted) {
       setTimeLeft(0);
     } else if (isQuizStarted) {
-      // Once started at the beginning, each unsubmitted question automatically receives 30s
+      // Once started at the beginning, each unsubmitted question automatically receives 20s
       setTimeLeft(QUESTION_TIME_LIMIT);
     } else {
       setTimeLeft(QUESTION_TIME_LIMIT);
     }
   }, [currentIdx, answers, isQuizStarted]);
 
-  // 30-Second Countdown timer for active unsubmitted question (runs automatically once quiz has been started)
+  // 20-Second Countdown timer for active unsubmitted question (runs automatically once quiz has been started)
   useEffect(() => {
     if (quizFinished) return;
     if (!isQuizStarted) return;
@@ -467,7 +467,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
               </span>
             </div>
 
-            {/* Right Action: [ ✨ Start Quiz / Submit ] & [ 🕒 30s left ] Timer */}
+            {/* Right Action: [ ✨ Start Quiz / Submit ] & [ 🕒 20s left ] Timer */}
             <div className="flex items-center gap-2.5">
               {!isCurrentSubmitted ? (
                 <>
@@ -489,7 +489,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                     </button>
                   )}
 
-                  {/* 30s Timer Badge (ticking automatically once quiz is started at the beginning) */}
+                  {/* 20s Timer Badge (ticking automatically once quiz is started at the beginning) */}
                   <div
                     className={`px-3 py-1 rounded-full text-xs font-mono font-semibold border flex items-center gap-1.5 transition-colors ${
                       isQuizStarted
@@ -549,7 +549,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
             <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs font-medium flex items-center justify-between gap-3">
               <span className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span>Click <strong>Start Quiz</strong> above to begin the 30-second timer per question and unlock answer options.</span>
+                <span>Click <strong>Start Quiz</strong> above to begin the 20-second timer per question and unlock answer options.</span>
               </span>
               <button
                 onClick={handleStartQuiz}
