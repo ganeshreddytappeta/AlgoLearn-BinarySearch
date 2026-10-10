@@ -1,32 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import {
-  HelpCircle,
-  Award,
+  GraduationCap,
   CheckCircle2,
   XCircle,
   RotateCcw,
-  ArrowRight,
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Sparkles,
   Trophy,
-  Star,
   Check,
-  AlertCircle,
   Eye,
   Home,
+  Clock,
+  AlertCircle,
 } from 'lucide-react';
 import { QuizQuestion, UserProgress } from '../../types';
 import { QUIZ_QUESTIONS } from '../../data/quizData';
 import { soundEffects } from '../../services/sound';
-import { awardXP } from '../../services/storage';
+import { awardXP, awardQuizQuestionPoints } from '../../services/storage';
+import { PointToastData } from '../common/PointToast';
 
 interface QuizViewProps {
   progress: UserProgress;
   onUpdateProgress: (updated: UserProgress | ((prev: UserProgress) => UserProgress)) => void;
   onNavigateHome?: () => void;
+  onShowPointToast?: (toast: PointToastData) => void;
 }
 
 interface QuestionAnswerState {
@@ -34,15 +33,23 @@ interface QuestionAnswerState {
   draggedOrder: string[];
   isSubmitted: boolean;
   isCorrect: boolean;
+  isTimeout?: boolean;
+  pointsDelta?: number;
 }
+
+const QUESTION_TIME_LIMIT = 30; // 30 seconds per question
 
 export const QuizView: React.FC<QuizViewProps> = ({
   progress,
   onUpdateProgress,
   onNavigateHome,
+  onShowPointToast,
 }) => {
   const [currentIdx, setCurrentIdx] = useState<number>(0);
   const [answers, setAnswers] = useState<Record<number, QuestionAnswerState>>({});
+  // Per-question tracking of whether "Start Quiz" has been clicked
+  const [questionStarted, setQuestionStarted] = useState<Record<number, boolean>>({});
+  const [timeLeft, setTimeLeft] = useState<number>(QUESTION_TIME_LIMIT);
   const [quizFinished, setQuizFinished] = useState<boolean>(false);
   const [reviewQuestionIdx, setReviewQuestionIdx] = useState<number | null>(null);
 
@@ -54,11 +61,40 @@ export const QuizView: React.FC<QuizViewProps> = ({
     isCorrect: false,
   };
 
+  const isCurrentStarted = Boolean(questionStarted[currentIdx]);
+  const isCurrentSubmitted = Boolean(currentAnswerState.isSubmitted);
+
+  // Sync initial state if progress already contains scored questions
+  useEffect(() => {
+    const tpScores = progress.topicPoints?.quizQuestionScores || {};
+    const tpAnswered = progress.topicPoints?.quizQuestionAnswered || {};
+    if (Object.keys(tpAnswered).length > 0) {
+      setAnswers((prev) => {
+        const next = { ...prev };
+        QUIZ_QUESTIONS.forEach((q, idx) => {
+          if (tpAnswered[q.id] && !next[idx]?.isSubmitted) {
+            const score = tpScores[q.id] ?? 0;
+            const isCorrect = score === 3;
+            const isTimeout = score === 0;
+            next[idx] = {
+              selectedOption: isCorrect ? (typeof q.correctAnswer === 'string' ? q.correctAnswer : null) : null,
+              draggedOrder: Array.isArray(q.correctAnswer) ? q.correctAnswer : [],
+              isSubmitted: true,
+              isCorrect,
+              isTimeout,
+              pointsDelta: score,
+            };
+          }
+        });
+        return next;
+      });
+    }
+  }, []);
+
   // Initialize drag order or answer state if not yet set
   useEffect(() => {
     if (!answers[currentIdx]) {
       if (currentQ.type === 'drag-order' && Array.isArray(currentQ.options)) {
-        // Scramble options
         const shuffled = [...currentQ.options].sort(() => Math.random() - 0.5);
         setAnswers((prev) => ({
           ...prev,
@@ -83,8 +119,72 @@ export const QuizView: React.FC<QuizViewProps> = ({
     }
   }, [currentIdx, currentQ]);
 
+  // Reset timer on question switch
+  useEffect(() => {
+    if (answers[currentIdx]?.isSubmitted) {
+      setTimeLeft(0);
+    } else if (questionStarted[currentIdx]) {
+      // If already started, keep or reset to 30
+      setTimeLeft(QUESTION_TIME_LIMIT);
+    } else {
+      setTimeLeft(QUESTION_TIME_LIMIT);
+    }
+  }, [currentIdx, answers, questionStarted]);
+
+  // 30-Second Countdown timer for active question (runs ONLY after pressing Start Quiz)
+  useEffect(() => {
+    if (quizFinished) return;
+    if (!questionStarted[currentIdx]) return;
+    if (answers[currentIdx]?.isSubmitted) return;
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleQuestionTimeout(currentIdx);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentIdx, questionStarted, answers, quizFinished]);
+
+  // Start Quiz button handler for the current question
+  const handleStartQuiz = () => {
+    soundEffects.playClick();
+    setQuestionStarted((prev) => ({ ...prev, [currentIdx]: true }));
+    setTimeLeft(QUESTION_TIME_LIMIT);
+  };
+
+  // Timeout handler: closes question and gives 0 points
+  const handleQuestionTimeout = (qIdx: number) => {
+    const q = QUIZ_QUESTIONS[qIdx];
+    if (!q) return;
+    if (answers[qIdx]?.isSubmitted) return;
+
+    soundEffects.playError();
+
+    // Award 0 points and persist immediately
+    const { updated } = awardQuizQuestionPoints(progress, q.id, 'timeout');
+    onUpdateProgress(updated);
+
+    setAnswers((prev) => ({
+      ...prev,
+      [qIdx]: {
+        selectedOption: null,
+        draggedOrder: [],
+        isSubmitted: true,
+        isCorrect: false,
+        isTimeout: true,
+        pointsDelta: 0,
+      },
+    }));
+  };
+
   const handleSelectOption = (opt: string) => {
-    if (currentAnswerState.isSubmitted) return;
+    if (!isCurrentStarted || isCurrentSubmitted) return;
     soundEffects.playClick();
     setAnswers((prev) => ({
       ...prev,
@@ -100,7 +200,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   const handleDragReorder = (sourceIdx: number, targetIdx: number) => {
-    if (currentAnswerState.isSubmitted) return;
+    if (!isCurrentStarted || isCurrentSubmitted) return;
     const currentList =
       currentAnswerState.draggedOrder.length > 0
         ? [...currentAnswerState.draggedOrder]
@@ -122,6 +222,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   const handleSubmitAnswer = () => {
+    if (!isCurrentStarted || isCurrentSubmitted) return;
     soundEffects.playClick();
 
     let isCorrect = false;
@@ -141,6 +242,27 @@ export const QuizView: React.FC<QuizViewProps> = ({
       soundEffects.playError();
     }
 
+    // Award/deduct points (+3 for correct, -1 for wrong)
+    const outcome = isCorrect ? 'correct' : 'wrong';
+    const { updated, pointsDelta } = awardQuizQuestionPoints(progress, currentQ.id, outcome);
+    onUpdateProgress(updated);
+
+    if (onShowPointToast) {
+      if (isCorrect) {
+        onShowPointToast({
+          points: 3,
+          reason: 'Correct Answer',
+          type: 'increase',
+        });
+      } else {
+        onShowPointToast({
+          points: -1,
+          reason: 'Incorrect Answer',
+          type: 'decrease',
+        });
+      }
+    }
+
     setAnswers((prev) => ({
       ...prev,
       [currentIdx]: {
@@ -150,6 +272,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
         }),
         isSubmitted: true,
         isCorrect,
+        isTimeout: false,
+        pointsDelta,
       },
     }));
   };
@@ -167,7 +291,6 @@ export const QuizView: React.FC<QuizViewProps> = ({
     if (currentIdx + 1 < QUIZ_QUESTIONS.length) {
       setCurrentIdx((prev) => prev + 1);
     } else {
-      // Calculate final score
       finishQuiz();
     }
   };
@@ -218,77 +341,83 @@ export const QuizView: React.FC<QuizViewProps> = ({
     soundEffects.playClick();
     setCurrentIdx(0);
     setAnswers({});
+    setQuestionStarted({});
+    setTimeLeft(QUESTION_TIME_LIMIT);
     setQuizFinished(false);
     setReviewQuestionIdx(null);
   };
 
   // Compute live score stats
   const answersList = Object.values(answers) as QuestionAnswerState[];
-  const totalAnswered = answersList.filter((a) => a?.isSubmitted).length;
   const totalCorrect = answersList.filter((a) => a?.isCorrect).length;
-  const totalIncorrect = totalAnswered - totalCorrect;
+  const totalTimeouts = answersList.filter((a) => a?.isTimeout).length;
+  const totalIncorrect = answersList.filter((a) => a?.isSubmitted && !a.isCorrect && !a.isTimeout).length;
   const finalScorePercent = Math.round(
     (totalCorrect / QUIZ_QUESTIONS.length) * 100
   );
+  const currentQuizPoints = progress.topicPoints?.quizEarned ?? 0;
+
+  const optionLetters = ['A', 'B', 'C', 'D', 'E'];
 
   return (
-    <div className="space-y-6 pb-12 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-              <HelpCircle className="w-5 h-5" />
-            </span>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white">
-              Quiz Assessment
-            </h1>
+    <div className="space-y-5 pb-16 max-w-4xl mx-auto">
+      {/* ─── 1. TOP HEADER CARD (MATCHING REFERENCE IMAGE 1) ─── */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 sm:p-7 shadow-xs space-y-4">
+        <div className="flex items-start gap-4">
+          {/* Rounded square purple icon container with graduation cap */}
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 shadow-2xs">
+            <GraduationCap className="w-6 h-6 stroke-[2]" />
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Test your understanding of sorted arrays, search boundaries, middle elements, range reduction, and O(log n) complexity.
-          </p>
+
+          <div className="space-y-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Binary Search Knowledge Check
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
+              Test your understanding of binary search, its properties, boundaries, range reduction, and algorithmic technique.
+            </p>
+          </div>
         </div>
 
-        {/* Question Counter & Controls */}
-        {!quizFinished && (
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 font-mono">
-              Question {currentIdx + 1} of {QUIZ_QUESTIONS.length}
+        {/* Scoring Pills Row */}
+        <div className="flex items-center gap-2.5 flex-wrap pt-1">
+          {/* Correct Answer Pill */}
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>
+              Correct answer: <strong className="font-bold font-mono text-emerald-800 dark:text-emerald-200">+3 points</strong>
             </span>
-          </div>
-        )}
+          </span>
+
+          {/* Wrong Answer Pill */}
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200/90 dark:border-rose-800">
+            <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+            <span>
+              Wrong answer: <strong className="font-bold font-mono text-rose-800 dark:text-rose-200">-1 point</strong>
+            </span>
+          </span>
+        </div>
       </div>
 
-      {/* Progress Bar & Question Step Pill Navigation */}
+      {/* ─── 2. STEPPER PILLS NAVIGATION CARD (MATCHING REFERENCE IMAGE 1) ─── */}
       {!quizFinished && (
-        <div className="space-y-2">
-          <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
-            <div
-              className="h-full bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 transition-all duration-300"
-              style={{
-                width: `${((currentIdx + 1) / QUIZ_QUESTIONS.length) * 100}%`,
-              }}
-            />
-          </div>
-
-          {/* Quick Question Stepper Chips */}
-          <div className="flex items-center justify-between gap-1 overflow-x-auto py-1 px-0.5">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-3 shadow-2xs">
+          <div className="flex items-center gap-2 overflow-x-auto py-0.5 custom-scrollbar">
             {QUIZ_QUESTIONS.map((q, idx) => {
               const ans = answers[idx];
               const isCurrent = idx === currentIdx;
-              let chipBg =
-                'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700';
+
+              let buttonStyle = 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800';
 
               if (isCurrent) {
-                chipBg =
-                  'bg-blue-600 text-white border-blue-500 ring-2 ring-blue-300 dark:ring-blue-800 font-bold';
+                buttonStyle = 'bg-blue-600 dark:bg-indigo-600 text-white font-bold border-blue-600 shadow-xs ring-2 ring-blue-500/20';
               } else if (ans?.isSubmitted) {
                 if (ans.isCorrect) {
-                  chipBg =
-                    'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700';
+                  buttonStyle = 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold';
+                } else if (ans.isTimeout) {
+                  buttonStyle = 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold';
                 } else {
-                  chipBg =
-                    'bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-700';
+                  buttonStyle = 'border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold';
                 }
               }
 
@@ -299,15 +428,17 @@ export const QuizView: React.FC<QuizViewProps> = ({
                     soundEffects.playClick();
                     setCurrentIdx(idx);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition-all cursor-pointer flex items-center gap-1 shrink-0 ${chipBg}`}
-                  title={`Question ${idx + 1}: ${q.type}`}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${buttonStyle}`}
                 >
                   <span>Q{idx + 1}</span>
                   {ans?.isSubmitted && ans.isCorrect && (
-                    <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+                    <Check className="w-3 h-3 stroke-[3]" />
                   )}
-                  {ans?.isSubmitted && !ans.isCorrect && (
-                    <span className="text-[10px] text-rose-500 font-black leading-none">✕</span>
+                  {ans?.isSubmitted && !ans.isCorrect && !ans.isTimeout && (
+                    <span className="text-[10px]">✕</span>
+                  )}
+                  {ans?.isSubmitted && ans.isTimeout && (
+                    <span className="text-[10px]">⏱</span>
                   )}
                 </button>
               );
@@ -316,72 +447,190 @@ export const QuizView: React.FC<QuizViewProps> = ({
         </div>
       )}
 
-      {/* Main Quiz Question Card */}
+      {/* ─── 3. QUESTION CARD (MATCHING REFERENCE IMAGE 1) ─── */}
       {!quizFinished ? (
-        <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-6">
-          {/* Question Category Badge & Text */}
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                {currentQ.type.replace('-', ' ')}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 sm:p-8 shadow-xs space-y-6">
+          {/* Header Row of the Question */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+            {/* Left Category / Number Pills */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70">
+                Q{currentIdx + 1} of 10
               </span>
-              {currentAnswerState.isSubmitted && (
-                <span
-                  className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                    currentAnswerState.isCorrect
-                      ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
-                      : 'bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-700'
-                  }`}
-                >
-                  {currentAnswerState.isCorrect ? '✓ Correct' : '✕ Incorrect'}
-                </span>
-              )}
+              <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                Q{currentIdx + 1}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                CORE-0{currentIdx + 1}
+              </span>
             </div>
 
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-2.5 leading-relaxed whitespace-pre-line">
-              {currentQ.question}
+            {/* Right Action: [ ✨ Start Quiz / Submit ] & [ 🕒 30s left ] Timer */}
+            <div className="flex items-center gap-2.5">
+              {!isCurrentSubmitted ? (
+                <>
+                  {!isCurrentStarted ? (
+                    <button
+                      onClick={handleStartQuiz}
+                      className="px-4 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 hover:from-indigo-700 hover:via-blue-700 hover:to-purple-700 text-white shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 fill-current" />
+                      <span>Start Quiz</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSubmitAnswer}
+                      disabled={!currentAnswerState.selectedOption && currentQ.type !== 'drag-order'}
+                      className="px-4 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 hover:from-indigo-700 hover:via-blue-700 hover:to-purple-700 disabled:opacity-40 disabled:pointer-events-none text-white shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <span>Submit Answer</span>
+                    </button>
+                  )}
+
+                  {/* 30s Timer Badge (ticking only after pressing Start Quiz) */}
+                  <div
+                    className={`px-3 py-1 rounded-full text-xs font-mono font-semibold border flex items-center gap-1.5 transition-colors ${
+                      isCurrentStarted
+                        ? timeLeft <= 10
+                          ? 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-800 animate-pulse font-bold'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                        : 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{timeLeft}s left</span>
+                  </div>
+                </>
+              ) : (
+                /* Evaluated Points Status Pill */
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-3.5 py-1 rounded-full text-xs font-mono font-black border flex items-center gap-1.5 ${
+                      currentAnswerState.isTimeout
+                        ? 'bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-800'
+                        : currentAnswerState.isCorrect
+                        ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
+                        : 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-800'
+                    }`}
+                  >
+                    {currentAnswerState.isTimeout ? (
+                      <>
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Closed (0 pts)</span>
+                      </>
+                    ) : currentAnswerState.isCorrect ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>+3 points</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✕</span>
+                        <span>-1 point</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Question Text */}
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-relaxed">
+              {currentIdx + 1}. {currentQ.question}
             </h2>
           </div>
 
-          {/* Options (MCQ, True/False, Scenario, Predict Output) */}
+          {/* Prompt banner if student has not pressed Start Quiz */}
+          {!isCurrentStarted && !isCurrentSubmitted && (
+            <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs font-medium flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>Click <strong>Start Quiz</strong> above to begin the 30-second timer and unlock answer options.</span>
+              </span>
+              <button
+                onClick={handleStartQuiz}
+                className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 cursor-pointer"
+              >
+                Start Quiz
+              </button>
+            </div>
+          )}
+
+          {/* Timeout Banner when question closes without submission */}
+          {isCurrentSubmitted && currentAnswerState.isTimeout && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Time expired! The question was closed without submission. <strong>0 points</strong> awarded.</span>
+            </div>
+          )}
+
+          {/* Options List (MCQ / Predict Output / True-False) */}
           {currentQ.type !== 'drag-order' && currentQ.options && (
             <div className="space-y-3">
-              {currentQ.options.map((opt) => {
+              {currentQ.options.map((opt, optIdx) => {
                 const isSelected = currentAnswerState.selectedOption === opt;
                 const isCorrect = opt === currentQ.correctAnswer;
 
-                let optClass =
-                  'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200';
+                let cardStyle =
+                  'border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700';
+                let letterStyle =
+                  'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400';
 
-                if (currentAnswerState.isSubmitted) {
+                // If not started yet: preview mode with light gray text
+                if (!isCurrentStarted && !isCurrentSubmitted) {
+                  cardStyle =
+                    'border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-850/40 text-slate-400 dark:text-slate-500 cursor-not-allowed';
+                  letterStyle =
+                    'bg-slate-100/80 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500';
+                } else if (isCurrentSubmitted) {
                   if (isCorrect) {
-                    optClass =
-                      'border-emerald-500 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-950/70 text-emerald-950 dark:text-emerald-100 font-bold ring-2 ring-emerald-200 dark:ring-emerald-900/50';
+                    cardStyle =
+                      'border-emerald-500 dark:border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-100 font-semibold ring-2 ring-emerald-200 dark:ring-emerald-900/50';
+                    letterStyle =
+                      'bg-emerald-600 text-white';
                   } else if (isSelected && !isCorrect) {
-                    optClass =
-                      'border-red-400 dark:border-red-600 bg-red-50 dark:bg-red-950/70 text-red-950 dark:text-red-100 ring-2 ring-red-200 dark:ring-red-900/50';
+                    cardStyle =
+                      'border-rose-400 dark:border-rose-600 bg-rose-50/70 dark:bg-rose-950/60 text-rose-950 dark:text-rose-100 ring-2 ring-rose-200 dark:ring-rose-900/50';
+                    letterStyle =
+                      'bg-rose-600 text-white';
                   } else {
-                    optClass =
-                      'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 opacity-60 text-slate-400 dark:text-slate-500';
+                    cardStyle =
+                      'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 opacity-60 text-slate-400 dark:text-slate-500';
+                    letterStyle =
+                      'bg-slate-100 dark:bg-slate-800 text-slate-400';
                   }
                 } else if (isSelected) {
-                  optClass =
-                    'border-blue-600 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/70 text-blue-900 dark:text-blue-200 font-bold ring-2 ring-blue-200 dark:ring-blue-900/50';
+                  cardStyle =
+                    'border-blue-600 dark:border-indigo-500 bg-blue-50/60 dark:bg-indigo-950/50 text-blue-900 dark:text-blue-100 font-semibold ring-2 ring-blue-300 dark:ring-indigo-900/50';
+                  letterStyle =
+                    'bg-blue-600 text-white';
                 }
 
                 return (
                   <button
                     key={opt}
                     onClick={() => handleSelectOption(opt)}
-                    disabled={currentAnswerState.isSubmitted}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between gap-3 text-xs sm:text-sm cursor-pointer ${optClass}`}
+                    disabled={!isCurrentStarted || isCurrentSubmitted}
+                    className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 text-xs sm:text-sm cursor-pointer ${cardStyle}`}
                   >
-                    <span>{opt}</span>
-                    {currentAnswerState.isSubmitted && isCorrect && (
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      {/* Letter Badge (A, B, C, D) */}
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg font-bold font-mono text-xs flex items-center justify-center shrink-0 transition-colors ${letterStyle}`}
+                      >
+                        {optionLetters[optIdx] || optIdx + 1}
+                      </div>
+
+                      <span className="leading-relaxed font-normal">{opt}</span>
+                    </div>
+
+                    {isCurrentSubmitted && isCorrect && (
                       <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     )}
-                    {currentAnswerState.isSubmitted && isSelected && !isCorrect && (
-                      <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+                    {isCurrentSubmitted && isSelected && !isCorrect && (
+                      <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
                     )}
                   </button>
                 );
@@ -389,7 +638,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
             </div>
           )}
 
-          {/* Drag and Drop Chronological Order */}
+          {/* Drag & Drop Reordering Mode */}
           {currentQ.type === 'drag-order' && (
             <div className="space-y-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -403,31 +652,34 @@ export const QuizView: React.FC<QuizViewProps> = ({
                 ).map((item, idx) => (
                   <div
                     key={item}
-                    draggable={!currentAnswerState.isSubmitted}
+                    draggable={isCurrentStarted && !isCurrentSubmitted}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', String(idx));
                     }}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
                       e.preventDefault();
-                      const sourceIdx = Number(
-                        e.dataTransfer.getData('text/plain')
-                      );
+                      const sourceIdx = Number(e.dataTransfer.getData('text/plain'));
                       handleDragReorder(sourceIdx, idx);
                     }}
-                    className={`p-3.5 rounded-xl border-2 text-xs font-semibold flex items-center justify-between ${
-                      currentAnswerState.isSubmitted
+                    className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-between ${
+                      !isCurrentStarted && !isCurrentSubmitted
+                        ? 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed'
+                        : isCurrentSubmitted
                         ? currentAnswerState.isCorrect
-                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-grab active:cursor-grabbing'
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200'
+                          : 'border-rose-400 bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 cursor-grab active:cursor-grabbing'
                     }`}
                   >
-                    <span>
-                      {idx + 1}. {item}
-                    </span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-                      {currentAnswerState.isSubmitted
-                        ? 'Submitted'
-                        : 'Drag to reorder'}
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-mono text-[11px] font-bold">
+                        {idx + 1}
+                      </span>
+                      <span>{item}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {isCurrentSubmitted ? 'Submitted' : 'Drag to reorder'}
                     </span>
                   </div>
                 ))}
@@ -435,48 +687,45 @@ export const QuizView: React.FC<QuizViewProps> = ({
             </div>
           )}
 
-          {/* Detailed Explanation Box after submission */}
-          {currentAnswerState.isSubmitted && (
-            <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-xs space-y-1.5 animate-fadeIn">
-              <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                Detailed Explanation:
+          {/* Explanation Box when question is completed */}
+          {isCurrentSubmitted && (
+            <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800 text-xs space-y-1.5 animate-fadeIn">
+              <span className="font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                Explanation:
               </span>
-              <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+              <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-normal">
                 {currentQ.explanation}
               </p>
             </div>
           )}
 
-          {/* ─── ACTION FOOTER WITH PREVIOUS BUTTON & SUBMIT / NEXT BUTTONS ─── */}
+          {/* Footer Navigation Bar */}
           <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            {/* PREVIOUS BUTTON */}
             <button
               onClick={handlePreviousQuestion}
               disabled={currentIdx === 0}
-              className="px-4 sm:px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Previous</span>
             </button>
 
-            {/* RIGHT SIDE: SUBMIT OR NEXT / FINISH BUTTON */}
             <div className="flex items-center gap-2">
-              {!currentAnswerState.isSubmitted ? (
+              {isCurrentStarted && !isCurrentSubmitted && (
                 <button
                   onClick={handleSubmitAnswer}
-                  disabled={
-                    currentQ.type !== 'drag-order' &&
-                    !currentAnswerState.selectedOption
-                  }
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 hover:from-blue-800 hover:via-blue-700 hover:to-indigo-600 disabled:opacity-40 disabled:pointer-events-none text-white rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer active:scale-95"
+                  disabled={!currentAnswerState.selectedOption && currentQ.type !== 'drag-order'}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:pointer-events-none text-white rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer active:scale-95"
                 >
                   Submit Answer
                 </button>
-              ) : (
+              )}
+
+              {isCurrentSubmitted && (
                 <button
                   onClick={handleNextQuestion}
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                 >
                   <span>
                     {currentIdx + 1 < QUIZ_QUESTIONS.length
@@ -490,10 +739,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
           </div>
         </div>
       ) : (
-        /* ─── HIGHLIGHTED SCORE RESULTS DASHBOARD AFTER COMPLETION ─── */
+        /* ─── FINAL QUIZ COMPLETION RESULTS ─── */
         <div className="space-y-6 animate-fadeIn">
-          
-          {/* 1. HERO HIGHLIGHT SCORE CARD */}
           <div
             className={`rounded-3xl p-8 sm:p-10 border shadow-lg text-center relative overflow-hidden transition-all ${
               finalScorePercent >= 80
@@ -503,10 +750,6 @@ export const QuizView: React.FC<QuizViewProps> = ({
                 : 'bg-gradient-to-b from-amber-50 via-white to-amber-50/40 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/30 border-amber-300 dark:border-amber-700/80 shadow-amber-500/10'
             }`}
           >
-            {/* Background Glow accent */}
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-64 h-32 bg-blue-500/15 dark:bg-blue-500/20 blur-3xl rounded-full pointer-events-none" />
-
-            {/* Trophy & Badge Icon */}
             <div className="relative z-10 flex flex-col items-center">
               <div
                 className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-md mb-4 text-white ${
@@ -520,7 +763,6 @@ export const QuizView: React.FC<QuizViewProps> = ({
                 <Trophy className="w-10 h-10" />
               </div>
 
-              {/* Status Pill Badge */}
               <div
                 className={`px-4 py-1 rounded-full text-xs font-mono font-black uppercase tracking-wider mb-2 border ${
                   finalScorePercent >= 80
@@ -540,56 +782,46 @@ export const QuizView: React.FC<QuizViewProps> = ({
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
                 BINARY SEARCH QUIZ COMPLETED!
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-md">
-                {finalScorePercent >= 80
-                  ? 'Incredible performance! You demonstrated thorough command of Binary Search, search boundaries, and logarithmic time complexity.'
-                  : finalScorePercent >= 60
-                  ? 'Great job! You have a solid grasp of Binary Search fundamentals, mid calculation, and range reduction.'
-                  : 'Good effort! Review the detailed question explanations below to sharpen your Binary Search mechanics.'}
-              </p>
 
-              {/* ─── VIBRANT HIGHLIGHTED SCORE BADGE ─── */}
               <div className="my-6 p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900/90 border-2 border-blue-400/50 dark:border-blue-500/50 shadow-xl max-w-sm w-full mx-auto ring-4 ring-blue-500/10 dark:ring-blue-500/20">
                 <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-400 uppercase block mb-1">
-                  FINAL HIGHLIGHTED SCORE
+                  TOPIC QUIZ POINTS EARNED
                 </span>
-                
-                {/* Big Bold Score Percentage */}
+
                 <div className="flex items-baseline justify-center gap-1 font-mono font-black">
-                  <span
-                    className={`text-6xl sm:text-7xl font-black tracking-tight ${
-                      finalScorePercent >= 80
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : finalScorePercent >= 60
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-amber-600 dark:text-amber-400'
-                    }`}
-                  >
-                    {finalScorePercent}%
+                  <span className="text-6xl sm:text-7xl font-black tracking-tight text-blue-600 dark:text-blue-400">
+                    {currentQuizPoints}
                   </span>
+                  <span className="text-2xl text-slate-400">/ 30 pts</span>
                 </div>
 
-                {/* Question Score Ratio */}
-                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                  <span>{totalCorrect}</span>
-                  <span className="text-slate-400">/</span>
-                  <span>{QUIZ_QUESTIONS.length} Questions Correct</span>
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-mono font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  <span>{totalCorrect} Correct ({totalCorrect * 3} pts)</span>
+                  <span className="text-slate-400">•</span>
+                  <span>{finalScorePercent}% Accuracy</span>
                 </div>
               </div>
 
-              {/* ─── 4 HIGHLIGHT METRICS STATS ─── */}
+              {/* Highlight Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
                 <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase block">Correct</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase block">Correct (+3)</span>
                   <span className="text-xl font-mono font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1">
                     <Check className="w-4 h-4 stroke-[3]" /> {totalCorrect}
                   </span>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase block">Incorrect</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase block">Incorrect (-1)</span>
                   <span className="text-xl font-mono font-black text-rose-600 dark:text-rose-400">
                     {totalIncorrect}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase block">Timeouts (0)</span>
+                  <span className="text-xl font-mono font-black text-amber-500">
+                    {totalTimeouts}
                   </span>
                 </div>
 
@@ -597,13 +829,6 @@ export const QuizView: React.FC<QuizViewProps> = ({
                   <span className="text-[10px] font-mono text-slate-400 uppercase block">Reward XP</span>
                   <span className="text-xl font-mono font-black text-blue-600 dark:text-blue-400 flex items-center justify-center gap-1">
                     <Sparkles className="w-4 h-4" /> +150
-                  </span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase block">Accuracy</span>
-                  <span className="text-xl font-mono font-black text-slate-800 dark:text-slate-200">
-                    {finalScorePercent}%
                   </span>
                 </div>
               </div>
@@ -630,11 +855,10 @@ export const QuizView: React.FC<QuizViewProps> = ({
                   </button>
                 )}
               </div>
-
             </div>
           </div>
 
-          {/* 2. QUESTION-BY-QUESTION REVIEW BREAKDOWN */}
+          {/* Question Breakdown List */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -652,6 +876,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
               {QUIZ_QUESTIONS.map((q, idx) => {
                 const ans = answers[idx];
                 const isCorrect = ans?.isCorrect;
+                const isTimeout = ans?.isTimeout;
                 const isExpanded = reviewQuestionIdx === idx;
 
                 return (
@@ -660,13 +885,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
                     className={`rounded-2xl border transition-all ${
                       isCorrect
                         ? 'border-emerald-200/80 dark:border-emerald-800/60 bg-emerald-50/30 dark:bg-emerald-950/20'
+                        : isTimeout
+                        ? 'border-amber-200/80 dark:border-amber-800/60 bg-amber-50/30 dark:bg-amber-950/20'
                         : 'border-rose-200/80 dark:border-rose-800/60 bg-rose-50/30 dark:bg-rose-950/20'
                     }`}
                   >
                     <div
-                      onClick={() =>
-                        setReviewQuestionIdx(isExpanded ? null : idx)
-                      }
+                      onClick={() => setReviewQuestionIdx(isExpanded ? null : idx)}
                       className="p-4 flex items-center justify-between gap-3 cursor-pointer select-none"
                     >
                       <div className="flex items-center gap-3">
@@ -674,6 +899,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
                           className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
                             isCorrect
                               ? 'bg-emerald-600 text-white'
+                              : isTimeout
+                              ? 'bg-amber-500 text-white'
                               : 'bg-rose-600 text-white'
                           }`}
                         >
@@ -684,7 +911,11 @@ export const QuizView: React.FC<QuizViewProps> = ({
                             {q.question}
                           </span>
                           <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 block mt-0.5">
-                            {isCorrect ? '✓ Solved Correctly' : '✕ Missed Answer'}
+                            {isCorrect
+                              ? '✓ Solved Correctly (+3 pts)'
+                              : isTimeout
+                              ? '⏱ Time Expired (0 pts)'
+                              : '✕ Incorrect (-1 pt)'}
                           </span>
                         </div>
                       </div>
@@ -719,10 +950,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
               })}
             </div>
           </div>
-
         </div>
       )}
     </div>
   );
 };
-

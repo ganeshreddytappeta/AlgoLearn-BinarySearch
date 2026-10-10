@@ -75,7 +75,7 @@ export const INITIAL_ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-const STORAGE_KEY = 'stack_master_user_progress_v1';
+const STORAGE_KEY = 'binary_search_user_progress_v3';
 
 const getTodayString = (): string => {
   return new Date().toISOString().split('T')[0];
@@ -98,6 +98,16 @@ export const getInitialProgress = (): UserProgress => {
     totalPops: 0,
     achievements: [],
     awardedEventKeys: [],
+    topicPoints: {
+      visualizeEarned: 0,
+      gameEarned: 0,
+      quizEarned: 0,
+      totalEarned: 0,
+      completedVideos: [],
+      gameLevelScores: {},
+      quizQuestionScores: {},
+      quizQuestionAnswered: {},
+    },
     history: [
       {
         title: 'Joined AlgoLearn',
@@ -168,6 +178,48 @@ export const loadProgress = (): UserProgress => {
     data.awardedEventKeys = Array.isArray(data.awardedEventKeys) ? data.awardedEventKeys : [];
     data.history = Array.isArray(data.history) ? data.history : [];
 
+    // Ensure topicPoints structure is complete and consistent
+    const rawTP = (data as any).topicPoints || {};
+    const completedVideos = Array.isArray(rawTP.completedVideos) ? rawTP.completedVideos : (Array.isArray(data.completedLabs) ? data.completedLabs : []);
+    const gameLevelScores = rawTP.gameLevelScores && typeof rawTP.gameLevelScores === 'object' ? rawTP.gameLevelScores : {};
+    const quizQuestionScores = rawTP.quizQuestionScores && typeof rawTP.quizQuestionScores === 'object' ? rawTP.quizQuestionScores : {};
+    const quizQuestionAnswered = rawTP.quizQuestionAnswered && typeof rawTP.quizQuestionAnswered === 'object' ? rawTP.quizQuestionAnswered : {};
+
+    // Calculate/reconcile points strictly following the topic breakdown (Visualize: 2 videos * 5 pts = 10 pts max)
+    const visualizeEarned = Math.min(10, Math.max(0, completedVideos.length * 5));
+    
+    // Sum level scores (clamped between 0 and 60)
+    let computedGameEarned = 0;
+    if (Object.keys(gameLevelScores).length > 0) {
+      computedGameEarned = Object.values(gameLevelScores).reduce<number>((acc, val: any) => acc + (typeof val === 'number' ? val : 0), 0);
+    } else if (data.completedGameLevels && data.completedGameLevels.length > 0) {
+      // Default backward compatibility: 10 pts per completed level
+      computedGameEarned = data.completedGameLevels.length * 10;
+    }
+    const gameEarned = Math.min(60, Math.max(0, computedGameEarned));
+
+    // Sum quiz question scores (clamped between 0 and 30)
+    let computedQuizEarned = 0;
+    if (Object.keys(quizQuestionScores).length > 0) {
+      computedQuizEarned = Object.values(quizQuestionScores).reduce<number>((acc, val: any) => acc + (typeof val === 'number' ? val : 0), 0);
+    } else if (data.quizCompleted) {
+      computedQuizEarned = Math.round((Math.max(0, data.quizHighScore || 100) / 100) * 30);
+    }
+    const quizEarned = Math.min(30, Math.max(0, computedQuizEarned));
+
+    const totalEarned = Math.min(100, Math.max(0, visualizeEarned + gameEarned + quizEarned));
+
+    data.topicPoints = {
+      visualizeEarned,
+      gameEarned,
+      quizEarned,
+      totalEarned,
+      completedVideos,
+      gameLevelScores,
+      quizQuestionScores,
+      quizQuestionAnswered,
+    };
+
     return data;
   } catch (e) {
     console.error('Failed to load user progress:', e);
@@ -232,3 +284,233 @@ export const resetAllProgress = (): UserProgress => {
   saveProgress(fresh);
   return fresh;
 };
+
+// =========================================================================
+// TOPIC POINTS HELPERS (Binary Search: 20 pts Video + 60 pts Game + 30 pts Quiz = 100 max)
+// =========================================================================
+
+export const awardVideoPoints = (
+  current: UserProgress,
+  videoId: number
+): { updated: UserProgress; pointsAwarded: number } => {
+  const tp = current.topicPoints || {
+    visualizeEarned: 0,
+    gameEarned: 0,
+    quizEarned: 0,
+    totalEarned: 0,
+    completedVideos: [],
+    gameLevelScores: {},
+    quizQuestionScores: {},
+    quizQuestionAnswered: {},
+  };
+
+  const completedVideos = Array.isArray(tp.completedVideos) ? [...tp.completedVideos] : [];
+  if (completedVideos.includes(videoId)) {
+    return { updated: current, pointsAwarded: 0 };
+  }
+
+  completedVideos.push(videoId);
+  const visualizeEarned = Math.min(10, completedVideos.length * 5);
+  const totalEarned = Math.min(100, visualizeEarned + tp.gameEarned + tp.quizEarned);
+
+  const completedLabs = Array.isArray(current.completedLabs) ? [...current.completedLabs] : [];
+  if (!completedLabs.includes(videoId)) {
+    completedLabs.push(videoId);
+  }
+
+  const updated: UserProgress = {
+    ...current,
+    completedLabs,
+    topicPoints: {
+      ...tp,
+      completedVideos,
+      visualizeEarned,
+      totalEarned,
+    },
+  };
+
+  saveProgress(updated);
+  return { updated, pointsAwarded: 5 };
+};
+
+export const deductHintPoints = (
+  current: UserProgress,
+  levelId: number
+): { updated: UserProgress; pointsDeducted: number } => {
+  const tp = current.topicPoints || {
+    visualizeEarned: 0,
+    gameEarned: 0,
+    quizEarned: 0,
+    totalEarned: 0,
+    completedVideos: [],
+    gameLevelScores: {},
+    quizQuestionScores: {},
+    quizQuestionAnswered: {},
+  };
+
+  const gameLevelScores = { ...(tp.gameLevelScores || {}) };
+  const currentScore = gameLevelScores[levelId] !== undefined ? gameLevelScores[levelId] : 10;
+  const newScore = Math.max(0, currentScore - 2);
+  gameLevelScores[levelId] = newScore;
+
+  const totalGameEarned = Math.min(60, Math.max(0, Object.values(gameLevelScores).reduce((a, b) => a + b, 0)));
+  const totalEarned = Math.min(100, Math.max(0, (tp.visualizeEarned || 0) + totalGameEarned + (tp.quizEarned || 0)));
+
+  const updated: UserProgress = {
+    ...current,
+    topicPoints: {
+      ...tp,
+      gameLevelScores,
+      gameEarned: totalGameEarned,
+      totalEarned,
+    },
+  };
+
+  saveProgress(updated);
+  return { updated, pointsDeducted: 2 };
+};
+
+export const deductGuidedSolvePoints = (
+  current: UserProgress,
+  levelId: number
+): { updated: UserProgress; pointsDeducted: number } => {
+  const tp = current.topicPoints || {
+    visualizeEarned: 0,
+    gameEarned: 0,
+    quizEarned: 0,
+    totalEarned: 0,
+    completedVideos: [],
+    gameLevelScores: {},
+    quizQuestionScores: {},
+    quizQuestionAnswered: {},
+  };
+
+  const gameLevelScores = { ...(tp.gameLevelScores || {}) };
+  const currentScore = gameLevelScores[levelId] !== undefined ? gameLevelScores[levelId] : 10;
+  const newScore = Math.max(0, currentScore - 3);
+  gameLevelScores[levelId] = newScore;
+
+  const totalGameEarned = Math.min(60, Math.max(0, Object.values(gameLevelScores).reduce((a, b) => a + b, 0)));
+  const totalEarned = Math.min(100, Math.max(0, (tp.visualizeEarned || 0) + totalGameEarned + (tp.quizEarned || 0)));
+
+  const updated: UserProgress = {
+    ...current,
+    topicPoints: {
+      ...tp,
+      gameLevelScores,
+      gameEarned: totalGameEarned,
+      totalEarned,
+    },
+  };
+
+  saveProgress(updated);
+  return { updated, pointsDeducted: 3 };
+};
+
+export const awardGameLevelPoints = (
+  current: UserProgress,
+  levelId: number,
+  guidedSolvesUsed: number,
+  hintsUsed: number
+): { updated: UserProgress; pointsAwarded: number } => {
+  const tp = current.topicPoints || {
+    visualizeEarned: 0,
+    gameEarned: 0,
+    quizEarned: 0,
+    totalEarned: 0,
+    completedVideos: [],
+    gameLevelScores: {},
+    quizQuestionScores: {},
+    quizQuestionAnswered: {},
+  };
+
+  const gameLevelScores = { ...(tp.gameLevelScores || {}) };
+
+  // Base: 10 points. Deductions: 3 pts per guided solve, 2 pts per hint used
+  const deductions = (guidedSolvesUsed * 3) + (hintsUsed * 2);
+  const earnedForLevel = Math.max(0, 10 - deductions);
+
+  // If no deductions were used, always allot full 10 points. Otherwise allot earnedForLevel or existing live deductions score.
+  const pointsToAllot = deductions === 0 ? 10 : (gameLevelScores[levelId] !== undefined ? gameLevelScores[levelId] : earnedForLevel);
+  gameLevelScores[levelId] = pointsToAllot;
+
+  const totalGameEarned = Math.min(60, Math.max(0, Object.values(gameLevelScores).reduce((a, b) => a + b, 0)));
+  const totalEarned = Math.min(100, Math.max(0, (tp.visualizeEarned || 0) + totalGameEarned + (tp.quizEarned || 0)));
+
+  const completedGameLevels = Array.isArray(current.completedGameLevels) ? [...current.completedGameLevels] : [];
+  if (!completedGameLevels.includes(levelId)) {
+    completedGameLevels.push(levelId);
+  }
+
+  const updated: UserProgress = {
+    ...current,
+    completedGameLevels,
+    topicPoints: {
+      ...tp,
+      gameLevelScores,
+      gameEarned: totalGameEarned,
+      totalEarned,
+    },
+  };
+
+  saveProgress(updated);
+  return { updated, pointsAwarded: pointsToAllot };
+};
+
+export const awardQuizQuestionPoints = (
+  current: UserProgress,
+  questionId: number,
+  outcome: 'correct' | 'wrong' | 'timeout'
+): { updated: UserProgress; pointsDelta: number } => {
+  const tp = current.topicPoints || {
+    visualizeEarned: 0,
+    gameEarned: 0,
+    quizEarned: 0,
+    totalEarned: 0,
+    completedVideos: [],
+    gameLevelScores: {},
+    quizQuestionScores: {},
+    quizQuestionAnswered: {},
+  };
+
+  const quizQuestionAnswered = { ...(tp.quizQuestionAnswered || {}) };
+  const quizQuestionScores = { ...(tp.quizQuestionScores || {}) };
+
+  // Ensure each question is scored only once. Prevent duplicate submissions & repeated deductions
+  if (quizQuestionAnswered[questionId]) {
+    return { updated: current, pointsDelta: 0 };
+  }
+
+  quizQuestionAnswered[questionId] = true;
+
+  let pointsDelta = 0;
+  if (outcome === 'correct') {
+    pointsDelta = 3; // +3 pts
+  } else if (outcome === 'wrong') {
+    pointsDelta = -1; // -1 pt deduction
+  } else {
+    pointsDelta = 0; // timeout: zero points
+  }
+
+  quizQuestionScores[questionId] = pointsDelta;
+
+  // Total quiz points calculation (clamped between 0 and 30)
+  const rawQuizSum = Object.values(quizQuestionScores).reduce((a, b) => a + b, 0);
+  const quizEarned = Math.min(30, Math.max(0, rawQuizSum));
+  const totalEarned = Math.min(100, Math.max(0, tp.visualizeEarned + tp.gameEarned + quizEarned));
+
+  const updated: UserProgress = {
+    ...current,
+    topicPoints: {
+      ...tp,
+      quizQuestionAnswered,
+      quizQuestionScores,
+      quizEarned,
+      totalEarned,
+    },
+  };
+
+  saveProgress(updated);
+  return { updated, pointsDelta };
+};
+

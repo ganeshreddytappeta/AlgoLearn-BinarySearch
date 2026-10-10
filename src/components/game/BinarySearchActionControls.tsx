@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   XCircle,
   Undo2,
-  RotateCcw,
   ChevronRight,
 } from 'lucide-react';
 
@@ -15,7 +14,7 @@ interface BinarySearchActionControlsProps {
   onTargetFound: () => void;
   onTargetNotFound: () => void;
   onUndo: () => void;
-  onResetLevel: () => void;
+  onResetLevel?: () => void;
   onNext: () => void;
   canUndo: boolean;
   isSolved: boolean;
@@ -130,15 +129,6 @@ export const BinarySearchActionControls: React.FC<BinarySearchActionControlsProp
           >
             <Undo2 className="w-3.5 h-3.5" />
             <span>Undo Move</span>
-          </button>
-
-          {/* Reset Level */}
-          <button
-            onClick={onResetLevel}
-            className="px-3 py-2 rounded-lg font-mono text-xs font-semibold flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all cursor-pointer active:scale-95"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Level</span>
           </button>
         </div>
 

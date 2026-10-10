@@ -10,8 +10,10 @@ import { LabView } from './components/views/LabView';
 import { GameView } from './components/views/GameView';
 import { QuizView } from './components/views/QuizView';
 import { ProgressView } from './components/views/ProgressView';
+import { PointsView } from './components/views/PointsView';
 import { ResetConfirmationModal } from './components/common/ResetConfirmationModal';
 import { ChatbotLogo } from './components/common/ChatbotLogo';
+import { PointToast, PointToastData } from './components/common/PointToast';
 import { CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -19,7 +21,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<TabType>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab') as TabType;
-    if (tab && ['home', 'theory', 'lab', 'game', 'quiz', 'progress'].includes(tab)) {
+    if (tab && ['home', 'theory', 'lab', 'game', 'quiz', 'progress', 'points'].includes(tab)) {
       return tab;
     }
     return 'home';
@@ -29,6 +31,7 @@ export default function App() {
   const [progress, setProgress] = useState<UserProgress>(() => loadProgress());
   const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [pointToast, setPointToast] = useState<PointToastData | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
 
   // Auto-dismiss toast message after 4 seconds
@@ -178,6 +181,7 @@ export default function App() {
             <LabView
               progress={progress}
               onUpdateProgress={handleUpdateProgress}
+              onShowPointToast={setPointToast}
             />
           )}
 
@@ -187,6 +191,7 @@ export default function App() {
               activeLevelId={activeGameLevelId}
               onSelectLevel={setActiveGameLevelId}
               onUpdateProgress={handleUpdateProgress}
+              onShowPointToast={setPointToast}
             />
           )}
 
@@ -195,6 +200,7 @@ export default function App() {
               progress={progress}
               onUpdateProgress={handleUpdateProgress}
               onNavigateHome={() => handleSelectTab('home')}
+              onShowPointToast={setPointToast}
             />
           )}
 
@@ -202,6 +208,13 @@ export default function App() {
             <ProgressView
               progress={progress}
               onResetProgress={handleOpenResetModal}
+              onNavigateTab={handleSelectTab}
+            />
+          )}
+
+          {currentTab === 'points' && (
+            <PointsView
+              progress={progress}
               onNavigateTab={handleSelectTab}
             />
           )}
@@ -223,6 +236,13 @@ export default function App() {
         isOpen={isResetModalOpen}
         onClose={handleCancelReset}
         onConfirmReset={handleConfirmReset}
+      />
+
+      {/* Point Change Pop-up Toast (2 seconds duration) */}
+      <PointToast
+        toast={pointToast}
+        onClose={() => setPointToast(null)}
+        duration={2000}
       />
 
       {/* Toast Notification (e.g. after successful reset) */}

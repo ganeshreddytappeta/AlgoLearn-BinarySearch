@@ -6,7 +6,6 @@ import {
   Eye,
   Bug,
   Zap,
-  Clock,
   Sparkles,
   CheckCircle2,
   Flame,
@@ -174,22 +173,15 @@ export const GameHub: React.FC<GameHubProps> = ({
               {/* Card Footer: Metadata & Primary Action Button */}
               <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-3.5">
                 <div className="flex items-center justify-between text-xs font-medium">
-                  {/* Difficulty & Estimated Time */}
-                  <div className="flex items-center gap-2 flex-wrap">
+                  {/* Difficulty & Points */}
+                  <div className="flex items-center justify-between w-full">
                     <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${getDifficultyBadge(game.difficulty)}`}>
                       {game.difficulty}
                     </span>
-                    <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      {game.duration}
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                      10 Points
                     </span>
                   </div>
-
-                  {/* XP Reward */}
-                  <span className="font-extrabold text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                    <Sparkles className="w-3 h-3 fill-amber-500" />
-                    +{game.xpReward} XP
-                  </span>
                 </div>
 
                 {/* Action Button: PLAY GAME */}

@@ -1,12 +1,13 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Check, Lock, Sparkles, Play, RotateCcw } from 'lucide-react';
+import { Check, Lock, Play } from 'lucide-react';
 import { GameMetaData } from '../../data/gameMeta';
 
 interface LevelCardGridProps {
   levels: GameMetaData[];
   activeLevelId: number;
   completedLevelIds: number[];
+  levelScores?: Record<number, number>;
   onSelectLevel: (levelId: number) => void;
 }
 
@@ -14,6 +15,7 @@ export const LevelCardGrid: React.FC<LevelCardGridProps> = ({
   levels,
   activeLevelId,
   completedLevelIds = [],
+  levelScores = {},
   onSelectLevel,
 }) => {
   // Ensure completedLevelIds is safely an array
@@ -135,7 +137,7 @@ export const LevelCardGrid: React.FC<LevelCardGridProps> = ({
                 </div>
 
                 {/* Level Title & Number */}
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   <span className="text-[11px] font-mono font-bold text-slate-400 uppercase">
                     Level {lvl.levelNumber < 10 ? `0${lvl.levelNumber}` : lvl.levelNumber}
                   </span>
@@ -151,15 +153,13 @@ export const LevelCardGrid: React.FC<LevelCardGridProps> = ({
               </div>
 
               <div>
-                {/* Meta Row: XP */}
+                {/* Meta Row: 10 Points */}
                 <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                  <span className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                    +{lvl.xpReward} XP
+                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    Points
                   </span>
-
-                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
-                    {lvl.duration || '5-7m'}
+                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    10 Points
                   </span>
                 </div>
 
@@ -178,8 +178,8 @@ export const LevelCardGrid: React.FC<LevelCardGridProps> = ({
                       }}
                       className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-mono text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>REPLAY</span>
+                      <Play className="w-3.5 h-3.5 text-emerald-500 fill-current" />
+                      <span>PLAY AGAIN</span>
                     </button>
                   ) : (
                     <button

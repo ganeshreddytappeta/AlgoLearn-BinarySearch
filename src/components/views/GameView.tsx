@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import {
-  Sparkles,
-  RotateCcw,
   Lightbulb,
   Compass,
   ArrowLeft,
@@ -14,7 +12,7 @@ import { UserProgress } from '../../types';
 import { GAME_LEVELS, BinarySearchLevelConfig, BinarySearchChallenge } from '../../data/gameData';
 import { GAME_CATALOG } from '../../data/gameMeta';
 import { soundEffects } from '../../services/sound';
-import { awardXP } from '../../services/storage';
+import { awardXP, awardGameLevelPoints, deductHintPoints, deductGuidedSolvePoints } from '../../services/storage';
 import {
   GuidedSubStage,
   getGuidedStepDetails,
@@ -31,12 +29,14 @@ import { BinarySearchLabCard } from '../game/BinarySearchLabCard';
 import { InGameLab } from '../game/InGameLab';
 import { GameFeedbackCard } from '../game/GameFeedbackCard';
 import { LevelCompleteModal } from '../game/LevelCompleteModal';
+import { PointToastData } from '../common/PointToast';
 
 interface GameViewProps {
   progress: UserProgress;
   activeLevelId: number;
   onSelectLevel: (levelId: number) => void;
   onUpdateProgress: (updated: UserProgress) => void;
+  onShowPointToast?: (toast: PointToastData) => void;
 }
 
 interface MoveSnapshot {
@@ -57,7 +57,13 @@ export const GameView: React.FC<GameViewProps> = ({
   activeLevelId,
   onSelectLevel,
   onUpdateProgress,
+  onShowPointToast,
 }) => {
+  const triggerPointToast = (data: PointToastData) => {
+    if (onShowPointToast) {
+      onShowPointToast(data);
+    }
+  };
   // Navigation: 'levels' (selection hub), 'playing' (active gameplay), or 'lab' (experiment sandbox)
   const [screenMode, setScreenMode] = useState<'levels' | 'playing' | 'lab'>('levels');
 
@@ -104,9 +110,12 @@ export const GameView: React.FC<GameViewProps> = ({
 
   // Hints State: 3 progressive stages (0 = closed, 1 = concept, 2 = direction, 3 = exact)
   const [hintStage, setHintStage] = useState<number>(0);
+  const [hintsUsedInLevel, setHintsUsedInLevel] = useState<boolean>(false);
 
   // Guided Solve Tutor State
   const [isGuidedSolveOpen, setIsGuidedSolveOpen] = useState<boolean>(false);
+  const [guidedSolvesUsedInLevel, setGuidedSolvesUsedInLevel] = useState<boolean>(false);
+  const [lastEarnedPoints, setLastEarnedPoints] = useState<number>(10);
   const [guidedSubStage, setGuidedSubStage] = useState<GuidedSubStage>('EXPLAIN_RANGE');
   const [guidedStepNumber, setGuidedStepNumber] = useState<number>(1);
   const [guidedTotalSteps, setGuidedTotalSteps] = useState<number>(4);
@@ -195,6 +204,8 @@ export const GameView: React.FC<GameViewProps> = ({
     onSelectLevel(levelId);
     setCurrentChallengeIndex(0);
     setMistakes(0);
+    setGuidedSolvesUsedInLevel(false);
+    setHintsUsedInLevel(false);
     const targetLevel = GAME_LEVELS.find((l) => l.id === levelId) || GAME_LEVELS[0];
     if (targetLevel && targetLevel.challenges && targetLevel.challenges[0]) {
       initializeChallenge(targetLevel.challenges[0]);
@@ -215,6 +226,8 @@ export const GameView: React.FC<GameViewProps> = ({
     soundEffects.playClick();
     setCurrentChallengeIndex(0);
     setMistakes(0);
+    setGuidedSolvesUsedInLevel(false);
+    setHintsUsedInLevel(false);
     if (currentLevel.challenges[0]) {
       initializeChallenge(currentLevel.challenges[0]);
     }
@@ -273,15 +286,31 @@ export const GameView: React.FC<GameViewProps> = ({
     );
 
     const baseProgress = awardResult.updated;
-    const currentCompleted = Array.isArray(baseProgress.completedGameLevels)
-      ? baseProgress.completedGameLevels
+
+    // Award Game Level Points with deductions: -3 pts for Guided Solve, -2 pts for Hint
+    const { updated: progressWithPoints, pointsAwarded } = awardGameLevelPoints(
+      baseProgress,
+      currentLevel.id,
+      guidedSolvesUsedInLevel ? 1 : 0,
+      hintsUsedInLevel ? 1 : 0
+    );
+    const finalPoints = pointsAwarded > 0 ? pointsAwarded : 10;
+    setLastEarnedPoints(finalPoints);
+    triggerPointToast({
+      points: finalPoints,
+      reason: 'Level Completed',
+      type: 'increase',
+    });
+
+    const currentCompleted = Array.isArray(progressWithPoints.completedGameLevels)
+      ? progressWithPoints.completedGameLevels
       : [];
     const finalCompleted = currentCompleted.includes(currentLevel.id)
       ? currentCompleted
       : [...currentCompleted, currentLevel.id];
 
     const finalProgress: UserProgress = {
-      ...baseProgress,
+      ...progressWithPoints,
       completedGameLevels: finalCompleted,
     };
     onUpdateProgress(finalProgress);
@@ -296,6 +325,17 @@ export const GameView: React.FC<GameViewProps> = ({
       setIsGuidedSolveOpen(false);
       return;
     }
+
+    // Flag guided solve usage for deduction (-3 pts)
+    setGuidedSolvesUsedInLevel(true);
+    triggerPointToast({
+      points: -3,
+      reason: 'Guided Solve Used',
+      type: 'decrease',
+    });
+    // Immediately update progress in storage and app state so Progress section updates right away
+    const { updated: progressAfterGuided } = deductGuidedSolvePoints(progress, currentLevel.id);
+    onUpdateProgress(progressAfterGuided);
 
     // Temporarily dismiss hints per spec
     setHintStage(0);
@@ -934,7 +974,19 @@ export const GameView: React.FC<GameViewProps> = ({
   // Hint Cycling (1 -> 2 -> 3 -> 0)
   const handleCycleHint = () => {
     soundEffects.playClick();
-    setHintStage((prev) => (prev >= 3 ? 0 : prev + 1));
+    const nextStage = hintStage >= 3 ? 0 : hintStage + 1;
+    if (nextStage > 0 && !hintsUsedInLevel) {
+      triggerPointToast({
+        points: -2,
+        reason: 'Hint Used',
+        type: 'decrease',
+      });
+      // Immediately update progress in storage and app state so Progress section updates right away
+      const { updated: progressAfterHint } = deductHintPoints(progress, currentLevel.id);
+      onUpdateProgress(progressAfterHint);
+    }
+    setHintsUsedInLevel(true);
+    setHintStage(nextStage);
   };
 
   // Calculate Progress Percent within Level
@@ -1000,6 +1052,7 @@ export const GameView: React.FC<GameViewProps> = ({
             levels={GAME_CATALOG}
             activeLevelId={activeLevelId}
             completedLevelIds={completedLevels}
+            levelScores={progress.topicPoints?.gameLevelScores}
             onSelectLevel={handleOpenLevel}
           />
 
@@ -1038,13 +1091,6 @@ export const GameView: React.FC<GameViewProps> = ({
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
                 Level {currentLevel.levelNumber < 10 ? `0${currentLevel.levelNumber}` : currentLevel.levelNumber} of 6
-              </div>
-              <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-amber-500 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 fill-amber-500" />
-                {progress.xp ?? 0} XP
-              </div>
-              <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                Score: {score}
               </div>
             </div>
           </div>
@@ -1107,15 +1153,6 @@ export const GameView: React.FC<GameViewProps> = ({
                 >
                   <Compass className="w-3.5 h-3.5" />
                   <span>{isGuidedSolveOpen ? 'Hide Guide' : 'Guided Solve'}</span>
-                </button>
-
-                {/* Question Reset Button */}
-                <button
-                  onClick={handleQuestionReset}
-                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                  title="Reset current challenge array"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -1343,6 +1380,7 @@ export const GameView: React.FC<GameViewProps> = ({
         isOpen={isLevelModalOpen}
         level={currentLevel}
         xpEarned={currentLevel.xpReward}
+        pointsEarned={lastEarnedPoints}
         comparisonsCount={stepsTaken.length > 0 ? stepsTaken.length : 1}
         mistakes={mistakes}
         outcomeText={isFound ? 'TARGET FOUND' : isNotFound ? 'TARGET NOT FOUND' : 'LEVEL COMPLETE'}

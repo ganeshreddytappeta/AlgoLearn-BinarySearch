@@ -3,15 +3,19 @@ import {
   Play,
   CheckCircle2,
   Film,
+  Sparkles,
 } from 'lucide-react';
 import { UserProgress } from '../../types';
 import { soundEffects } from '../../services/sound';
+import { awardVideoPoints } from '../../services/storage';
 import { EducationalVideoPlayer } from '../lab/EducationalVideoPlayer';
 import { LESSONS_DATA, LessonData } from '../../data/labVideoData';
+import { PointToastData } from '../common/PointToast';
 
 interface LabViewProps {
   progress: UserProgress;
   onUpdateProgress: (updated: UserProgress | ((prev: UserProgress) => UserProgress)) => void;
+  onShowPointToast?: (toast: PointToastData) => void;
 }
 
 interface CustomVideoState {
@@ -23,6 +27,7 @@ interface CustomVideoState {
 export const LabView: React.FC<LabViewProps> = ({
   progress,
   onUpdateProgress,
+  onShowPointToast,
 }) => {
   // Active selected lesson (1 for BINARY SEARCH, 2 for BINARY SEARCH ALGORITHM)
   const [selectedLessonId, setSelectedLessonId] = useState<number>(1);
@@ -90,14 +95,6 @@ export const LabView: React.FC<LabViewProps> = ({
       });
       setSelectedLessonId(2);
       soundEffects.playSuccess();
-
-      if (!progress.completedLabs?.includes(2)) {
-        onUpdateProgress((prev) => ({
-          ...prev,
-          completedLabs: [...(prev.completedLabs || []), 2],
-          xp: prev.xp + 50,
-        }));
-      }
     }
   };
 
@@ -110,15 +107,6 @@ export const LabView: React.FC<LabViewProps> = ({
     if (playerContainerRef.current) {
       playerContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-
-    // Award lab completion upon watching
-    if (!progress.completedLabs?.includes(lessonId)) {
-      onUpdateProgress((prev) => ({
-        ...prev,
-        completedLabs: [...(prev.completedLabs || []), lessonId],
-        xp: prev.xp + 50,
-      }));
-    }
   };
 
   // Selected Lesson object
@@ -128,8 +116,8 @@ export const LabView: React.FC<LabViewProps> = ({
   const currentCustomUrl = selectedLessonId === 1 ? video1.url : video2.url;
   const currentCustomName = selectedLessonId === 1 ? video1.name : video2.name;
 
-  const isLesson1Completed = progress.completedLabs?.includes(1);
-  const isLesson2Completed = progress.completedLabs?.includes(2);
+  const isLesson1Completed = progress.topicPoints?.completedVideos?.includes(1) || progress.completedLabs?.includes(1);
+  const isLesson2Completed = progress.topicPoints?.completedVideos?.includes(2) || progress.completedLabs?.includes(2);
 
   return (
     <div className="space-y-8 pb-16 max-w-6xl mx-auto">
@@ -152,10 +140,19 @@ export const LabView: React.FC<LabViewProps> = ({
       />
 
       {/* ─── VISUALIZE SECTION HEADING ─── */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
-          VISUALIZE
-        </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
+            VISUALIZE
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            2 videos • 5 points each • Total 10 visualization points available
+          </p>
+        </div>
+        <div className="px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono text-xs font-bold self-start sm:self-center flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <span>Earned: {progress.topicPoints?.visualizeEarned || 0} / 10 pts</span>
+        </div>
       </div>
 
       {/* ─── TWO VIDEO CARDS GRID ─── */}
@@ -170,11 +167,15 @@ export const LabView: React.FC<LabViewProps> = ({
           }`}
         >
           <div className="space-y-4">
-            {/* Top Row: Video label + Video Icon Container */}
+            {/* Top Row: Video label + Points Badge + Video Icon Container */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase tracking-wider border border-slate-200/80 dark:border-slate-700/80">
                   VIDEO 01
+                </span>
+                <span className="text-[11px] font-mono font-black px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  +5 pts
                 </span>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-900/60">
                   Binary Search.mp4
@@ -185,7 +186,7 @@ export const LabView: React.FC<LabViewProps> = ({
                 {isLesson1Completed && (
                   <span
                     className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-300/60 dark:border-emerald-800"
-                    title="Completed (+50 XP)"
+                    title="Completed (+5 pts earned)"
                   >
                     <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
                   </span>
@@ -220,13 +221,16 @@ export const LabView: React.FC<LabViewProps> = ({
           </div>
 
           {/* Bottom Action Area: CLICK TO WATCH */}
-          <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
+          <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+            <span className="text-xs font-mono font-bold text-slate-400">
+              {isLesson1Completed ? '✓ Completed (5 pts)' : 'Watch to completion (+5 pts)'}
+            </span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleLessonWatch(1);
               }}
-              className={`w-full py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.99] ${
+              className={`py-3 px-5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.99] ${
                 selectedLessonId === 1
                   ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 hover:from-blue-800 hover:via-blue-700 hover:to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/30'
                   : 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200/60 dark:border-blue-800/60'
@@ -248,11 +252,15 @@ export const LabView: React.FC<LabViewProps> = ({
           }`}
         >
           <div className="space-y-4">
-            {/* Top Row: Video label + Video Icon Container */}
+            {/* Top Row: Video label + Points Badge + Video Icon Container */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase tracking-wider border border-slate-200/80 dark:border-slate-700/80">
                   VIDEO 02
+                </span>
+                <span className="text-[11px] font-mono font-black px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  +5 pts
                 </span>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-900/60">
                   Binary Search Algorithm.mp4
@@ -263,7 +271,7 @@ export const LabView: React.FC<LabViewProps> = ({
                 {isLesson2Completed && (
                   <span
                     className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-300/60 dark:border-emerald-800"
-                    title="Completed (+50 XP)"
+                    title="Completed (+5 pts earned)"
                   >
                     <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
                   </span>
@@ -300,13 +308,16 @@ export const LabView: React.FC<LabViewProps> = ({
           </div>
 
           {/* Bottom Action Area: CLICK TO WATCH */}
-          <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
+          <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+            <span className="text-xs font-mono font-bold text-slate-400">
+              {isLesson2Completed ? '✓ Completed (5 pts)' : 'Watch to completion (+5 pts)'}
+            </span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleLessonWatch(2);
               }}
-              className={`w-full py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.99] ${
+              className={`py-3 px-5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.99] ${
                 selectedLessonId === 2
                   ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-500 hover:from-blue-800 hover:via-blue-700 hover:to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/30'
                   : 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200/60 dark:border-blue-800/60'
@@ -334,12 +345,16 @@ export const LabView: React.FC<LabViewProps> = ({
             }
           }}
           onLessonComplete={(completedId) => {
-            if (!progress.completedLabs?.includes(completedId)) {
-              onUpdateProgress((prev) => ({
-                ...prev,
-                completedLabs: [...(prev.completedLabs || []), completedId],
-                xp: prev.xp + 50,
-              }));
+            // Award points ONLY when video is fully completed (5 pts per video, max 10 pts)
+            const { updated } = awardVideoPoints(progress, completedId);
+            onUpdateProgress(updated);
+            soundEffects.playSuccess();
+            if (onShowPointToast) {
+              onShowPointToast({
+                points: 5,
+                reason: 'Video Completed',
+                type: 'increase',
+              });
             }
           }}
         />

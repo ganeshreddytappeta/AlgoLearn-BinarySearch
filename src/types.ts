@@ -56,10 +56,26 @@ export interface UserProgress {
   quizCompleted: boolean;
   quizHighScore: number;
   quizTotalQuestionsAnswered: number;
+  quizCorrectAnswers?: number;
+  quizWrongAnswers?: number;
+  gameHintsUsed?: number;
+  gameGuidedSolvesUsed?: number;
+  gamePenalties?: number;
   totalPushes: number;
   totalPops: number;
   achievements: string[]; // achievement ids
-  awardedEventKeys: string[]; // prevents duplicate XP rewards
+  awardedEventKeys: string[]; // prevents duplicate XP/points rewards
+  // Topic Points System (Strictly 100 points maximum)
+  topicPoints?: {
+    visualizeEarned: number; // Max 10 (2 videos * 5 pts)
+    gameEarned: number;      // Max 60 (6 levels * 10 pts - deductions)
+    quizEarned: number;      // Max 30 (10 questions * 3 pts - deductions)
+    totalEarned: number;     // Sum clamped [0, 100]
+    completedVideos?: number[]; // IDs of completed videos
+    gameLevelScores?: Record<number, number>; // Earned points per level
+    quizQuestionScores?: Record<number, number>; // Earned points per question
+    quizQuestionAnswered?: Record<number, boolean>; // Question evaluated flag
+  };
   history: {
     title: string;
     description: string;

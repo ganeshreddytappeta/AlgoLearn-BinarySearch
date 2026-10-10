@@ -7,7 +7,6 @@ import {
   HelpCircle,
   TrendingUp,
   X,
-  Layers,
 } from 'lucide-react';
 import { TabType, UserProgress } from '../../types';
 import { soundEffects } from '../../services/sound';

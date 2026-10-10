@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Star, ArrowRight, CheckCircle2, RotateCcw, Sparkles, Grid } from 'lucide-react';
+import { Trophy, Star, ArrowRight, CheckCircle2, Sparkles, Grid } from 'lucide-react';
 
 interface LevelCompleteModalProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface LevelCompleteModalProps {
     subtitle?: string;
   };
   xpEarned: number;
+  pointsEarned?: number;
   comparisonsCount?: number;
   mistakes: number;
   outcomeText?: string;
@@ -24,17 +25,17 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
   isOpen,
   level,
   xpEarned,
+  pointsEarned = 10,
   comparisonsCount = 3,
   mistakes,
   outcomeText = 'TARGET FOUND',
   hasNextLevel,
   onNextLevel,
   onReturnToLevels,
-  onReplayLevel,
 }) => {
   if (!isOpen) return null;
 
-  const isFinalLevel = level.levelNumber === 10 || !hasNextLevel;
+  const isFinalLevel = level.levelNumber === 6 || !hasNextLevel;
   const stars = mistakes === 0 ? 3 : mistakes <= 2 ? 2 : 1;
   const accuracyText = mistakes === 0 ? '100% (Flawless)' : `${Math.max(60, 100 - mistakes * 15)}%`;
 
@@ -89,11 +90,11 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 grid grid-cols-3 gap-2 text-center">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
-                XP Earned
+                Topic Points
               </span>
-              <span className="text-base font-black text-blue-600 dark:text-blue-400 font-mono flex items-center justify-center gap-0.5 mt-0.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                +{xpEarned}
+              <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono flex items-center justify-center gap-0.5 mt-0.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500" />
+                +{pointsEarned !== undefined && pointsEarned > 0 ? pointsEarned : 10} pts
               </span>
             </div>
 
@@ -110,7 +111,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
                 Accuracy
               </span>
-              <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono mt-0.5 block">
+              <span className="text-base font-black text-blue-600 dark:text-blue-400 font-mono mt-0.5 block">
                 {accuracyText}
               </span>
             </div>
@@ -143,17 +144,6 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
               >
                 <Grid className="w-4 h-4" />
                 <span>RETURN TO LEVELS</span>
-              </button>
-            )}
-
-            {/* Optional Replay Button */}
-            {onReplayLevel && (
-              <button
-                onClick={onReplayLevel}
-                className="w-full py-2 text-xs font-mono font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Replay this level</span>
               </button>
             )}
           </div>
